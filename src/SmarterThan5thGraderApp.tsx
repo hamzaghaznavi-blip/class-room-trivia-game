@@ -168,12 +168,8 @@ export default function SmarterThan5thGraderApp() {
   const [resumeSessionName, setResumeSessionName] = useState<string | null>(null);
   /** Host taps an answer to show correct (green) vs wrong (red); resets each question. */
   const [hostRevealAll, setHostRevealAll] = useState(false);
-  /** Optional audience vote counts for Londa poll (display only). */
-  const [londaVotes, setLondaVotes] = useState<Record<string, number>>({});
-
   const resetQuestionUI = () => {
     setHostRevealAll(false);
-    setLondaVotes({});
   };
 
   useEffect(() => {
@@ -574,7 +570,7 @@ export default function SmarterThan5thGraderApp() {
               ))}
             </div>
             <p className="mt-2 text-[11px] font-mono text-white/80 max-w-3xl">
-              Scoring: correct = grade value (G1 → +1, G2 → +2, … G6 → +6). Londa poll: half points (e.g. G4 → +2). Subject chooser wrong: −1. Others wrong: 0. Lifelines: once per player per game.
+              Scoring: correct = grade value (G1 → +1 … G6 → +6). Lounda poll: ½ pts for caller. Unees Bees: pick 2 answers. Chooser wrong: −1. Others wrong: 0. Lifelines: once per player per game.
             </p>
           </div>
         )}
@@ -750,7 +746,7 @@ export default function SmarterThan5thGraderApp() {
                 <p className="text-sm font-mono text-brutal-black/60 mb-2 uppercase tracking-widest">
                   Grade {gameState.currentGrade ?? '?'} · +{formatScore(pointsForCorrect(gameState.currentGrade ?? 1))} pts
                   {gameState.londaPollPlayerId &&
-                    ` · Londa: ${gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'} (½ pts)`}
+                    ` · Lounda: ${gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'} (½ pts)`}
                 </p>
 
                 <h3 className="text-4xl md:text-5xl lg:text-6xl font-display leading-tight tracking-tight mb-10">
@@ -839,30 +835,6 @@ export default function SmarterThan5thGraderApp() {
                   </div>
                 )}
 
-                {gameState.londaPollPlayerId && (
-                  <div className="mb-6 p-5 border-4 border-brutal-black bg-gallery-white rounded-xl">
-                    <p className="font-mono text-xs font-bold uppercase text-brutal-black/80 mb-3">
-                      Londa poll — tap for each audience vote
-                    </p>
-                    <div className="flex flex-wrap gap-3">
-                      {gameState.players.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() =>
-                            setLondaVotes((v) => ({ ...v, [p.id]: (v[p.id] ?? 0) + 1 }))
-                          }
-                          className={cn(
-                            'px-4 py-2 border-2 border-brutal-black font-mono text-sm font-bold uppercase rounded-lg',
-                            p.id === gameState.londaPollPlayerId ? 'bg-electric-blue text-white' : 'bg-gallery-white',
-                          )}
-                        >
-                          {p.name} ({londaVotes[p.id] ?? 0})
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="mt-8 rounded-2xl border-4 border-brutal-black bg-gradient-to-br from-neon-green/20 to-electric-blue/10 p-5 md:p-6">
@@ -872,7 +844,7 @@ export default function SmarterThan5thGraderApp() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <p className="font-mono text-xs font-bold text-brutal-black/70 mb-2 uppercase">
-                      Unees Bees — remove 2 wrong answers (once/game)
+                      Unees Bees — contestant picks two answers (once/game)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {gameState.players.map((p) =>
@@ -895,7 +867,7 @@ export default function SmarterThan5thGraderApp() {
 
                   <div>
                     <p className="font-mono text-xs font-bold text-brutal-black/70 mb-2 uppercase">
-                      Londa poll — ask the room, half pts (once/game)
+                      Lounda poll — ask the room, ½ pts for caller (once/game)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {gameState.players.map((p) => {
