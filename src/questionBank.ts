@@ -11,43 +11,13 @@ export type FactPack = {
   distractors: [string, string, string];
 };
 
-/* ──────────────────────────────────────────────
-   Template expansion: 200 unique phrasings
-   (40 prefixes × 5 suffixes = 200 combos)
-   50 seeds × 200 templates = 10,000 per grade
-   ────────────────────────────────────────────── */
-
-const PREFIXES = [
-  '', 'Quick: ', 'Think: ', 'Answer: ', 'Check: ',
-  'Brain teaser: ', 'Easy one: ', 'Challenge: ', 'Pop quiz: ', 'Rapid fire: ',
-  'Bonus: ', 'Round starter: ', 'Final answer: ', 'For the win: ', 'Knowledge check: ',
-  'Fun fact: ', 'Did you know? ', 'Test yourself: ', 'Ready? ', 'Here it comes: ',
-  'Focus: ', 'Think fast: ', 'Heads up: ', 'Fresh one: ', 'New round: ',
-  'Coming up: ', 'Listen up: ', 'Try this: ', 'Solve: ', 'Pick the answer: ',
-  'Grade check: ', 'Level up: ', 'Power round: ', 'Speed round: ', 'Hot seat: ',
-  'Sudden death: ', 'Warm up: ', 'Deep dive: ', 'Quick fire: ', 'Show time: ',
-];
-
-const SUFFIXES = [
-  '', ' Choose wisely.', ' Think carefully.', ' Take your time.', ' Final answer?',
-];
-
 function expandSeeds(rawSeeds: Fact[]): FactPack[] {
   if (!rawSeeds || rawSeeds.length === 0) return [];
-  const pool: FactPack[] = [];
-  for (let pi = 0; pi < PREFIXES.length; pi++) {
-    for (let si = 0; si < SUFFIXES.length; si++) {
-      for (let fi = 0; fi < rawSeeds.length; fi++) {
-        const [clue, answer, d1, d2, d3] = rawSeeds[fi];
-        pool.push({
-          clue: `${PREFIXES[pi]}${clue}${SUFFIXES[si]}`,
-          answer,
-          distractors: [d1, d2, d3],
-        });
-      }
-    }
-  }
-  return pool;
+  return rawSeeds.map(([clue, answer, d1, d2, d3]) => ({
+    clue,
+    answer,
+    distractors: [d1, d2, d3],
+  }));
 }
 
 /* ──────────────────────────────────────────────

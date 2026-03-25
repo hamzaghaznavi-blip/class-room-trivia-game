@@ -49,51 +49,6 @@ const PRIZE_TABLE: Prize[] = [
 
 import { getFactsForSubjectGrade, getQuestionPoolSize } from './questionBank';
 
-const GRADE_TEMPLATES: Record<Grade, string[]> = {
-  1: [
-    '{clue}',
-    'Easy one: {clue}',
-    '{subject} time: {clue}',
-    'Pick the best answer: {clue}',
-    'Little challenge: {clue}',
-  ],
-  2: [
-    '{clue}',
-    'Try this: {clue}',
-    'Quick check in {subject}: {clue}',
-    'Choose the correct option: {clue}',
-    'Think and pick: {clue}',
-  ],
-  3: [
-    '{clue}',
-    'Grade 3 challenge in {subject}: {clue}',
-    'Topic "{topic}" asks: {clue}',
-    'Best answer for this clue: {clue}',
-    'Mini quiz: {clue}',
-  ],
-  4: [
-    '{clue}',
-    'Grade 4 question ({subject}): {clue}',
-    'Use what you know about {topic}: {clue}',
-    'Find the strongest answer: {clue}',
-    'Knowledge check: {clue}',
-  ],
-  5: [
-    '{clue}',
-    'Grade 5 challenge ({subject}): {clue}',
-    'Apply your understanding of {topic}: {clue}',
-    'Which option is most accurate? {clue}',
-    'Final answer test: {clue}',
-  ],
-  6: [
-    '{clue}',
-    'Grade 6 challenge ({subject}): {clue}',
-    'Use this {topic} clue carefully: {clue}',
-    'Pick the most suitable answer: {clue}',
-    'Slightly harder check: {clue}',
-  ],
-};
-
 const toSlug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
 const deterministicShuffle = (items: string[], seed: number): string[] => {
@@ -109,14 +64,6 @@ const deterministicShuffle = (items: string[], seed: number): string[] => {
   return out;
 };
 
-/** Profile B: easy with slight ramp — grade 1 simplest wording, 6 a bit more demanding. */
-const difficultyHint = (grade: Grade): string => {
-  if (grade <= 2) return '(easy)';
-  if (grade <= 4) return '(medium)';
-  return '(think a bit)';
-};
-
-const TOPIC_WORDS = ['round', 'quiz', 'check', 'deck', 'topic', 'warmup'];
 
 /** Spreads pool access so the same random index ≠ same fact across grades (less “duplicate” feel). */
 const factIndexForPool = (subject: Subject, grade: Grade, index: number, poolLen: number): number => {
@@ -131,19 +78,12 @@ const createOfflineQuestion = (subject: Subject, grade: Grade, index: number): Q
   const n = Math.max(1, facts.length);
   const fi = factIndexForPool(subject, grade, index, n);
   const fact = facts[fi];
-  const topic = TOPIC_WORDS[index % TOPIC_WORDS.length];
-  const template = GRADE_TEMPLATES[grade][index % GRADE_TEMPLATES[grade].length];
-  const scenarioTag = `Set ${Math.floor(index / n) + 1} · card ${fi + 1}`;
-  const questionText = `[Grade ${grade}] ${difficultyHint(grade)} ${template
-    .replace('{clue}', fact.clue)
-    .replace('{subject}', subject)
-    .replace('{topic}', topic)} (${scenarioTag})`;
 
   return {
     id: `${toSlug(subject)}-${grade}-${index}`,
     subject,
     grade,
-    question: questionText,
+    question: fact.clue,
     answer: fact.answer,
     options: deterministicShuffle([fact.answer, ...fact.distractors], index + grade * 1000),
   };
@@ -806,8 +746,74 @@ export default function SmarterThan5thGraderApp() {
                 </div>
               </div>
 
-              <div className="bg-white border-8 border-brutal-black p-16 brutal-shadow-blue relative">
+              <div className="bg-white border-8 border-brutal-black p-8 md:p-12 brutal-shadow-blue relative">
+                <p className="text-sm font-mono text-brutal-black/60 mb-2 uppercase tracking-widest">
+                  Grade {gameState.currentGrade ?? '?'} · +{formatScore(pointsForCorrect(gameState.currentGrade ?? 1))} pts
+                  {gameState.londaPollPlayerId &&
+                    ` · Londa: ${gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'} (½ pts)`}
+                </p>
+
+                <h3 className="text-4xl md:text-5xl lg:text-6xl font-display leading-tight tracking-tight mb-10">
+                  {gameState.currentQuestion.question}
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                  {gameState.currentQuestion.options.map((option, idx) => {
+                    const isCorrectOpt = option === gameState.currentQuestion!.answer;
+                    const uneesOn = gameState.uneesBeesActive;
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          if (uneesOn) toggleUneesBeesSelection(option);
+                          else setHostRevealAll(true);
+                        }}
+                        className={cn(
+                          'p-5 md:p-6 border-4 border-brutal-black text-xl md:text-2xl font-black text-left relative transition-colors rounded-xl',
+                          hostRevealAll
+                            ? isCorrectOpt
+                              ? 'bg-green-500 text-white border-green-800'
+                              : 'bg-red-500 text-white border-red-800'
+                            : uneesOn
+                              ? gameState.uneesBeesSelections.includes(option)
+                                ? 'bg-neon-green'
+                                : 'bg-gallery-white'
+                              : 'bg-gallery-white hover:bg-neutral-100',
+                        )}
+                      >
+                        <span className="text-electric-blue mr-3 font-mono">{String.fromCharCode(65 + idx)}.</span>
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div className="flex flex-wrap items-center gap-3 mb-6">
+                  <button
+                    type="button"
+                    onClick={() => setHostRevealAll(true)}
+                    className="px-4 py-2 bg-brutal-black text-gallery-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-brutal-black"
+                  >
+                    Show correct / wrong
+                  </button>
+                  <button onClick={() => setShowAnswer(!showAnswer)} className="px-4 py-2 bg-electric-blue text-gallery-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-electric-blue">
+                    {showAnswer ? 'Hide Answer' : 'Reveal Answer'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={nextQuestionSameRound}
+                    className="px-4 py-2 bg-gallery-white border-2 border-brutal-black font-mono font-bold uppercase text-xs rounded-lg"
+                  >
+                    Next question
+                  </button>
+                  <button
+                    type="button"
+                    onClick={alternateQuestion}
+                    className="px-4 py-2 bg-neon-green text-brutal-black border-2 border-brutal-black font-mono font-bold uppercase text-xs rounded-lg"
+                  >
+                    Alternate
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -821,152 +827,22 @@ export default function SmarterThan5thGraderApp() {
                         londaPollPlayerId: null,
                       }));
                     }}
-                    className="px-5 py-3 bg-gallery-white border-4 border-brutal-black font-mono font-bold uppercase text-sm rounded-xl min-h-[48px]"
+                    className="px-4 py-2 bg-gallery-white border-2 border-brutal-black font-mono font-bold uppercase text-xs rounded-lg"
                   >
                     Back
                   </button>
-                  <button
-                    type="button"
-                    onClick={nextQuestionSameRound}
-                    className="px-5 py-3 bg-electric-blue text-gallery-white border-4 border-brutal-black font-mono font-bold uppercase text-sm rounded-xl min-h-[48px]"
-                  >
-                    Next question
-                  </button>
-                  <button
-                    type="button"
-                    onClick={alternateQuestion}
-                    className="px-5 py-3 bg-neon-green text-brutal-black border-4 border-brutal-black font-mono font-bold uppercase text-sm rounded-xl min-h-[48px]"
-                  >
-                    Alternate question
-                  </button>
                 </div>
-                <p className="text-sm font-mono text-brutal-black/70 mb-6">
-                  Grade {gameState.currentGrade ?? '?'}: up to +
-                  {formatScore(pointsForCorrect(gameState.currentGrade ?? 1))} if correct
-                  {gameState.londaPollPlayerId &&
-                    ` · Londa active: ${gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'} scores ½ if correct`}
-                  {gameState.categoryChooserId && ' · Chooser wrong: −1'}
-                </p>
 
-                <div className="mb-10 rounded-2xl border-4 border-brutal-black bg-gradient-to-br from-neon-green/30 to-electric-blue/20 p-6 md:p-8 brutal-shadow">
-                  <h2 className="text-3xl md:text-4xl font-display uppercase tracking-tight text-brutal-black mb-2">
-                    Lifelines
-                  </h2>
-                  <p className="font-mono text-xs font-bold uppercase text-brutal-black/70 mb-6">
-                    Host taps who uses each lifeline · shown every question
-                  </p>
-
-                  <div className="space-y-8">
-                    <div>
-                      <p className="font-mono text-sm font-bold text-brutal-black mb-3">
-                        1 · Unees Bees — pick two answers to remove (once per player per game)
-                      </p>
-                      <div className="flex flex-wrap gap-3">
-                        {gameState.players.map((p) =>
-                          p.hasUsedUneesBees !== true ? (
-                            <button
-                              key={`unees-${p.id}`}
-                              type="button"
-                              onClick={() => activateUneesBees(p.id)}
-                              className="min-h-[52px] px-6 py-3 bg-electric-blue text-gallery-white border-4 border-brutal-black font-mono text-sm font-bold uppercase rounded-xl brutal-shadow-sm hover:brightness-110"
-                            >
-                              {p.name} — Unees Bees
-                            </button>
-                          ) : null,
-                        )}
-                      </div>
-                      {gameState.players.every((p) => p.hasUsedUneesBees === true) && (
-                        <p className="mt-2 font-mono text-xs text-brutal-black/60">Everyone has used Unees Bees this game.</p>
-                      )}
-                    </div>
-
-                    <div className="border-t-4 border-brutal-black/20 pt-8">
-                      <p className="font-mono text-sm font-bold text-brutal-black mb-3">
-                        2 · Audience poll (Londa) — ask the room; correct score is half for that player (once per player
-                        per game)
-                      </p>
-                      <div className="flex flex-wrap gap-3">
-                        {gameState.players.map((p) => {
-                          const canUse =
-                            p.hasUsedLondaPoll !== true && gameState.londaPollPlayerId == null;
-                          if (!canUse) return null;
-                          return (
-                            <button
-                              key={`londa-${p.id}`}
-                              type="button"
-                              onClick={() => activateLondaPoll(p.id)}
-                              className="min-h-[52px] px-6 py-3 bg-brutal-black text-neon-green border-4 border-neon-green font-mono text-sm font-bold uppercase rounded-xl brutal-shadow-sm hover:brightness-110"
-                            >
-                              {p.name} — Londa poll (½ pts)
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {gameState.londaPollPlayerId != null && (
-                        <p className="mt-3 font-mono text-xs font-bold text-electric-blue">
-                          Active:{' '}
-                          {gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'} — audience
-                          votes below · score with their green button (+½) when correct.
-                        </p>
-                      )}
-                      {gameState.players.every((p) => p.hasUsedLondaPoll === true) &&
-                        gameState.londaPollPlayerId == null && (
-                          <p className="mt-2 font-mono text-xs text-brutal-black/60">
-                            Everyone has used Londa poll this game.
-                          </p>
-                        )}
-                    </div>
+                {showAnswer && (
+                  <div className="text-4xl md:text-5xl font-display uppercase text-neon-green bg-brutal-black px-8 py-4 mb-6 rounded-xl inline-block">
+                    {gameState.currentQuestion.answer}
                   </div>
-                </div>
-
-                <h3 className="text-6xl font-display uppercase leading-[0.9] tracking-tighter mb-12">{gameState.currentQuestion.question}</h3>
-
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <button
-                    type="button"
-                    onClick={() => setHostRevealAll(true)}
-                    className="px-4 py-2 bg-brutal-black text-gallery-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-brutal-black"
-                  >
-                    Highlight correct / wrong
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
-                  {gameState.currentQuestion.options.map((option, idx) => {
-                    const isCorrectOpt = option === gameState.currentQuestion!.answer;
-                    const uneesOn = gameState.uneesBeesActive;
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          if (uneesOn) toggleUneesBeesSelection(option);
-                          else setHostRevealAll(true);
-                        }}
-                        className={cn(
-                          'p-6 border-4 border-brutal-black text-2xl font-black uppercase text-left relative transition-colors',
-                          hostRevealAll
-                            ? isCorrectOpt
-                              ? 'bg-green-500 text-white border-green-800'
-                              : 'bg-red-500 text-white border-red-800'
-                            : uneesOn
-                              ? gameState.uneesBeesSelections.includes(option)
-                                ? 'bg-neon-green'
-                                : 'bg-gallery-white'
-                              : 'bg-gallery-white hover:bg-neutral-100',
-                        )}
-                      >
-                        <span className="text-electric-blue mr-4">{String.fromCharCode(65 + idx)}.</span>
-                        {option}
-                      </button>
-                    );
-                  })}
-                </div>
+                )}
 
                 {gameState.londaPollPlayerId && (
-                  <div className="mb-10 p-6 border-4 border-brutal-black bg-white brutal-shadow-sm">
+                  <div className="mb-6 p-5 border-4 border-brutal-black bg-gallery-white rounded-xl">
                     <p className="font-mono text-xs font-bold uppercase text-brutal-black/80 mb-3">
-                      Londa poll — tap a name for each audience vote (for display; host still scores manually)
+                      Londa poll — tap for each audience vote
                     </p>
                     <div className="flex flex-wrap gap-3">
                       {gameState.players.map((p) => (
@@ -987,16 +863,68 @@ export default function SmarterThan5thGraderApp() {
                     </div>
                   </div>
                 )}
+              </div>
 
-                <button onClick={() => setShowAnswer(!showAnswer)} className="text-3xl font-display uppercase text-electric-blue">
-                  {showAnswer ? 'Hide Answer' : 'Reveal Answer'}
-                </button>
-
-                {showAnswer && (
-                  <div className="text-5xl font-display uppercase text-neon-green bg-brutal-black px-10 py-4 mt-4">
-                    {gameState.currentQuestion.answer}
+              <div className="mt-8 rounded-2xl border-4 border-brutal-black bg-gradient-to-br from-neon-green/20 to-electric-blue/10 p-5 md:p-6">
+                <h2 className="text-xl font-display uppercase tracking-tight text-brutal-black mb-4">
+                  Lifelines
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="font-mono text-xs font-bold text-brutal-black/70 mb-2 uppercase">
+                      Unees Bees — remove 2 wrong answers (once/game)
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {gameState.players.map((p) =>
+                        p.hasUsedUneesBees !== true ? (
+                          <button
+                            key={`unees-${p.id}`}
+                            type="button"
+                            onClick={() => activateUneesBees(p.id)}
+                            className="px-4 py-2 bg-electric-blue text-gallery-white border-2 border-brutal-black font-mono text-xs font-bold uppercase rounded-lg hover:brightness-110"
+                          >
+                            {p.name}
+                          </button>
+                        ) : null,
+                      )}
+                      {gameState.players.every((p) => p.hasUsedUneesBees === true) && (
+                        <p className="font-mono text-xs text-brutal-black/50">All used</p>
+                      )}
+                    </div>
                   </div>
-                )}
+
+                  <div>
+                    <p className="font-mono text-xs font-bold text-brutal-black/70 mb-2 uppercase">
+                      Londa poll — ask the room, half pts (once/game)
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {gameState.players.map((p) => {
+                        const canUse =
+                          p.hasUsedLondaPoll !== true && gameState.londaPollPlayerId == null;
+                        if (!canUse) return null;
+                        return (
+                          <button
+                            key={`londa-${p.id}`}
+                            type="button"
+                            onClick={() => activateLondaPoll(p.id)}
+                            className="px-4 py-2 bg-brutal-black text-neon-green border-2 border-neon-green font-mono text-xs font-bold uppercase rounded-lg hover:brightness-110"
+                          >
+                            {p.name}
+                          </button>
+                        );
+                      })}
+                      {gameState.londaPollPlayerId != null && (
+                        <p className="font-mono text-xs font-bold text-electric-blue">
+                          Active: {gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'}
+                        </p>
+                      )}
+                      {gameState.players.every((p) => p.hasUsedLondaPoll === true) &&
+                        gameState.londaPollPlayerId == null && (
+                          <p className="font-mono text-xs text-brutal-black/50">All used</p>
+                        )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
