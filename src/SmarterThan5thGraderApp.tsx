@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Users, Trash2, Home, Timer as TimerIcon, Settings2 } from 'lucide-react';
+import { Trophy, Trash2, Home, Settings2, Plus, Crown, Zap, Star } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 import { cn } from './lib/utils';
@@ -64,8 +64,6 @@ const deterministicShuffle = (items: string[], seed: number): string[] => {
   return out;
 };
 
-
-/** Spreads pool access so the same random index ≠ same fact across grades (less “duplicate” feel). */
 const factIndexForPool = (subject: Subject, grade: Grade, index: number, poolLen: number): number => {
   const subjSalt =
     subject.split('').reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7) % 1009;
@@ -92,7 +90,6 @@ const createOfflineQuestion = (subject: Subject, grade: Grade, index: number): Q
 const questionIdForIndex = (subject: Subject, grade: Grade, index: number) =>
   `${toSlug(subject)}-${grade}-${index}`;
 
-/** Random unused question; if pool exhausted, allows repeats but avoids `mustDifferFromId` when possible. */
 const pickRandomQuestion = (
   subject: Subject,
   grade: Grade,
@@ -126,7 +123,6 @@ const pickRandomQuestion = (
 const pointsForCorrect = (grade: Grade): number => grade;
 const CHOOSER_WRONG_PENALTY = -1;
 
-/** Londa poll: half of normal correct points for that grade (e.g. G3 → 1.5). */
 const pointsForCorrectWithLonda = (
   grade: Grade,
   playerId: string,
@@ -138,6 +134,132 @@ const pointsForCorrectWithLonda = (
 };
 
 const formatScore = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+type ScorePopup = { id: string; playerId: string; delta: number; timestamp: number };
+
+const SUBJECT_ICONS: Record<string, string> = {
+  'Maths': '🔢',
+  'World History': '🏛️',
+  'Sub-continent History': '🕌',
+  'Geography': '🌍',
+  'World Religion & Mythology': '⛩️',
+  'General Science': '🔬',
+  'Islam': '☪️',
+  'Cricket': '🏏',
+  'Pop Culture & Sex Ed': '🎭',
+  'Sports': '⚽',
+  'World Politics': '🏛️',
+  'Tech': '💻',
+};
+
+/* ─── Timer Ring Component ─── */
+function TimerRing({ timeLeft, total = 30 }: { timeLeft: number; total?: number }) {
+  const radius = 28;
+  const circumference = 2 * Math.PI * radius;
+  const progress = timeLeft / total;
+  const dashOffset = circumference * (1 - progress);
+  const isCritical = timeLeft <= 10 && timeLeft > 0;
+
+  return (
+    <div className={cn('relative flex items-center justify-center', isCritical && 'timer-critical')}>
+      <svg width="72" height="72" viewBox="0 0 72 72" className="transform -rotate-90">
+        <circle
+          cx="36" cy="36" r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,0.1)"
+          strokeWidth="4"
+        />
+        <circle
+          cx="36" cy="36" r={radius}
+          fill="none"
+          stroke={isCritical ? '#EF4444' : timeLeft <= 15 ? '#F59E0B' : '#00FF88'}
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          className="timer-ring"
+        />
+      </svg>
+      <span className={cn(
+        'absolute text-xl font-black font-mono',
+        isCritical ? 'text-red-400' : 'text-white',
+      )}>
+        {timeLeft}
+      </span>
+    </div>
+  );
+}
+
+/* ─── Leaderboard Component ─── */
+function Leaderboard({ players, showSubjectScore = false }: { players: Player[]; showSubjectScore?: boolean }) {
+  const sorted = useMemo(
+    () => [...players].sort((a, b) => b.totalScore - a.totalScore),
+    [players],
+  );
+  const medals = ['🥇', '🥈', '🥉'];
+
+  return (
+    <div className="space-y-2">
+      {sorted.map((p, i) => (
+        <motion.div
+          key={p.id}
+          layout
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: i * 0.08, type: 'spring', stiffness: 200 }}
+          className={cn(
+            'flex items-center gap-3 px-4 py-3 rounded-xl border transition-all',
+            i === 0 ? 'bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border-amber-500/30' :
+            i === 1 ? 'bg-gradient-to-r from-slate-300/10 to-gray-300/10 border-slate-400/20' :
+            i === 2 ? 'bg-gradient-to-r from-orange-600/10 to-amber-700/10 border-orange-500/20' :
+            'bg-white/5 border-white/10',
+          )}
+        >
+          <span className="text-2xl w-8 text-center">{medals[i] ?? `${i + 1}.`}</span>
+          <span className="flex-1 font-black text-lg uppercase tracking-tight text-white">{p.name}</span>
+          <div className="text-right">
+            <span className="text-xl font-black font-mono text-neon-green">{formatScore(p.totalScore)}</span>
+            {showSubjectScore && (
+              <span className="block text-xs font-mono text-white/50">round: {formatScore(p.subjectScore)}</span>
+            )}
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Score Popup Float ─── */
+function ScoreFloat({ popup }: { popup: ScorePopup }) {
+  return (
+    <div className="score-popup fixed top-1/3 left-1/2 -translate-x-1/2 z-[100]">
+      <span className={cn(
+        'text-5xl font-display',
+        popup.delta > 0 ? 'text-neon-green' : 'text-red-400',
+      )}>
+        {popup.delta > 0 ? `+${formatScore(popup.delta)}` : formatScore(popup.delta)}
+      </span>
+    </div>
+  );
+}
+
+/* ─── Progress Dots ─── */
+function ProgressDots({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      {Array.from({ length: total }, (_, i) => (
+        <div
+          key={i}
+          className={cn(
+            'w-3 h-3 rounded-full transition-all duration-300',
+            i < current ? 'bg-neon-green scale-100' : 'bg-white/20 scale-75',
+          )}
+        />
+      ))}
+      <span className="text-xs font-mono text-white/50 ml-2">{current}/{total}</span>
+    </div>
+  );
+}
 
 export default function SmarterThan5thGraderApp() {
   const [gameState, setGameState] = useState<GameState>({
@@ -166,18 +288,19 @@ export default function SmarterThan5thGraderApp() {
   const persistedSessionRef = useRef<PersistedSession | null>(null);
   const [resumeOffered, setResumeOffered] = useState(false);
   const [resumeSessionName, setResumeSessionName] = useState<string | null>(null);
-  /** Host taps an answer to show correct (green) vs wrong (red); resets each question. */
   const [hostRevealAll, setHostRevealAll] = useState(false);
-  const resetQuestionUI = () => {
+  const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
+  const [hostPanelOpen, setHostPanelOpen] = useState(false);
+  const [customAdjust, setCustomAdjust] = useState<Record<string, string>>({});
+
+  const resetQuestionUI = useCallback(() => {
     setHostRevealAll(false);
-  };
+  }, []);
 
   useEffect(() => {
     const saved = loadPersistedSession();
     if (saved?.gameState && saved.sessionName) {
       persistedSessionRef.current = saved;
-      // Defer state updates to avoid synchronous setState-in-effect lint warnings.
-      // requestAnimationFrame runs after the current render cycle.
       requestAnimationFrame(() => {
         setResumeOffered(true);
         setResumeSessionName(saved.sessionName);
@@ -203,16 +326,16 @@ export default function SmarterThan5thGraderApp() {
     };
   }, [isTimerRunning, timeLeft]);
 
-  const persistNow = (gs: GameState, name: string | null) => {
+  const persistNow = useCallback((gs: GameState, name: string | null) => {
     if (!name || !persistedSessionRef.current) return;
     const s = persistedSessionRef.current;
     s.gameState = serializeGameState(gs);
     savePersistedSession(s);
-  };
+  }, []);
 
   useEffect(() => {
     if (sessionName) persistNow(gameState, sessionName);
-  }, [gameState, sessionName]);
+  }, [gameState, sessionName, persistNow]);
 
   useEffect(() => {
     const onLeave = () => {
@@ -225,13 +348,34 @@ export default function SmarterThan5thGraderApp() {
     return () => window.removeEventListener('beforeunload', onLeave);
   }, [gameState, sessionName]);
 
-  const logScoreEvent = (line: string) => {
+  const logScoreEvent = useCallback((line: string) => {
     if (!persistedSessionRef.current) return;
     appendLogLine(persistedSessionRef.current, line);
     savePersistedSession(persistedSessionRef.current);
-  };
+  }, []);
 
-  const addPlayer = () => {
+  /** Log a full scoreboard snapshot */
+  const logScoreSnapshot = useCallback((players: Player[], context: string) => {
+    if (!persistedSessionRef.current) return;
+    const board = players.map((p) => `${p.name}=${formatScore(p.totalScore)}`).join(', ');
+    appendLogLine(persistedSessionRef.current, `[SNAPSHOT ${context}] ${board}`);
+    savePersistedSession(persistedSessionRef.current);
+  }, []);
+
+  const showScorePopup = useCallback((playerId: string, delta: number) => {
+    const popup: ScorePopup = {
+      id: Math.random().toString(36).slice(2, 9),
+      playerId,
+      delta,
+      timestamp: Date.now(),
+    };
+    setScorePopups((prev) => [...prev, popup]);
+    setTimeout(() => {
+      setScorePopups((prev) => prev.filter((p) => p.id !== popup.id));
+    }, 1500);
+  }, []);
+
+  const addPlayer = useCallback(() => {
     if (newPlayerName.trim() && gameState.players.length < 7) {
       const newPlayer: Player = {
         id: Math.random().toString(36).slice(2, 11),
@@ -244,9 +388,9 @@ export default function SmarterThan5thGraderApp() {
       setGameState((prev) => ({ ...prev, players: [...prev.players, newPlayer] }));
       setNewPlayerName('');
     }
-  };
+  }, [newPlayerName, gameState.players.length]);
 
-  const selectGrade = (grade: Grade) => {
+  const selectGrade = useCallback((grade: Grade) => {
     if (!gameState.currentSubject) return;
     setSelectedGrade(grade);
 
@@ -268,9 +412,9 @@ export default function SmarterThan5thGraderApp() {
     resetQuestionUI();
     setTimeLeft(30);
     setIsTimerRunning(true);
-  };
+  }, [gameState.currentSubject, resetQuestionUI]);
 
-  const nextQuestionSameRound = () => {
+  const nextQuestionSameRound = useCallback(() => {
     setGameState((prev) => {
       if (!prev.currentSubject || !prev.currentGrade) return prev;
       const q = pickRandomQuestion(
@@ -293,9 +437,9 @@ export default function SmarterThan5thGraderApp() {
     setTimeLeft(30);
     setIsTimerRunning(true);
     logScoreEvent('Next question (random)');
-  };
+  }, [resetQuestionUI, logScoreEvent]);
 
-  const alternateQuestion = () => {
+  const alternateQuestion = useCallback(() => {
     setGameState((prev) => {
       if (!prev.currentSubject || !prev.currentGrade || !prev.currentQuestion) return prev;
       const q = pickRandomQuestion(
@@ -318,35 +462,37 @@ export default function SmarterThan5thGraderApp() {
     setTimeLeft(30);
     setIsTimerRunning(true);
     logScoreEvent('Alternate question (different prompt)');
-  };
+  }, [resetQuestionUI, logScoreEvent]);
 
-  const handleScore = (playerId: string, isCorrect: boolean) => {
+  const handleScore = useCallback((playerId: string, isCorrect: boolean) => {
     const grade = gameState.currentGrade ?? 1;
     const isCategoryChooser = playerId === gameState.categoryChooserId;
     const pts = pointsForCorrectWithLonda(grade, playerId, gameState.londaPollPlayerId);
 
     if (isCorrect) {
-      confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 }, colors: ['#00FF88', '#3B82F6', '#F59E0B'] });
     }
 
     setIsTimerRunning(false);
 
     const playerName = gameState.players.find((p) => p.id === playerId)?.name ?? playerId;
+    let scoreChange = 0;
     if (isCorrect) {
       const londaNote = playerId === gameState.londaPollPlayerId ? ' [Londa ½]' : '';
       logScoreEvent(`${playerName}: CORRECT (+${pts}) [grade ${grade}]${londaNote}`);
+      scoreChange = pts;
     } else if (isCategoryChooser) {
       logScoreEvent(`${playerName}: WRONG (${CHOOSER_WRONG_PENALTY}) [chooser]`);
+      scoreChange = CHOOSER_WRONG_PENALTY;
     } else {
       logScoreEvent(`${playerName}: WRONG (0) [non-chooser]`);
     }
 
+    showScorePopup(playerId, scoreChange);
+
     setGameState((prev) => {
       const newPlayers = prev.players.map((p) => {
         if (p.id !== playerId) return p;
-        let scoreChange = 0;
-        if (isCorrect) scoreChange = pts;
-        else if (isCategoryChooser) scoreChange = CHOOSER_WRONG_PENALTY;
         return {
           ...p,
           totalScore: p.totalScore + scoreChange,
@@ -355,6 +501,10 @@ export default function SmarterThan5thGraderApp() {
       });
 
       const nextQuestionsAnswered = prev.questionsAnsweredInSubject + 1;
+
+      // Autosave score snapshot after every scoring event
+      logScoreSnapshot(newPlayers, `Q${nextQuestionsAnswered} ${prev.currentSubject} G${grade}`);
+
       if (nextQuestionsAnswered >= QUESTIONS_PER_SUBJECT) {
         return {
           ...prev,
@@ -377,9 +527,9 @@ export default function SmarterThan5thGraderApp() {
       };
     });
     setShowAnswer(false);
-  };
+  }, [gameState.currentGrade, gameState.categoryChooserId, gameState.londaPollPlayerId, gameState.players, logScoreEvent, logScoreSnapshot, showScorePopup]);
 
-  const activateUneesBees = (playerId: string) => {
+  const activateUneesBees = useCallback((playerId: string) => {
     if (!gameState.currentQuestion) return;
     const p = gameState.players.find((x) => x.id === playerId);
     if (!p || p.hasUsedUneesBees === true) return;
@@ -389,18 +539,18 @@ export default function SmarterThan5thGraderApp() {
       uneesBeesActive: true,
       uneesBeesSelections: [],
     }));
-  };
+  }, [gameState.currentQuestion, gameState.players]);
 
-  const toggleUneesBeesSelection = (option: string) => {
+  const toggleUneesBeesSelection = useCallback((option: string) => {
     setGameState((prev) => {
       const isSelected = prev.uneesBeesSelections.includes(option);
       if (isSelected) return { ...prev, uneesBeesSelections: prev.uneesBeesSelections.filter((o) => o !== option) };
       if (prev.uneesBeesSelections.length < 2) return { ...prev, uneesBeesSelections: [...prev.uneesBeesSelections, option] };
       return prev;
     });
-  };
+  }, []);
 
-  const activateLondaPoll = (playerId: string) => {
+  const activateLondaPoll = useCallback((playerId: string) => {
     if (!gameState.currentQuestion) return;
     const p = gameState.players.find((x) => x.id === playerId);
     if (!p || p.hasUsedLondaPoll === true || gameState.londaPollPlayerId != null) return;
@@ -412,9 +562,9 @@ export default function SmarterThan5thGraderApp() {
         pl.id === playerId ? { ...pl, hasUsedLondaPoll: true } : pl,
       ),
     }));
-  };
+  }, [gameState.currentQuestion, gameState.players, gameState.londaPollPlayerId, logScoreEvent]);
 
-  const resetGame = () => {
+  const resetGame = useCallback(() => {
     clearPersistedSession();
     persistedSessionRef.current = null;
     setSessionName(null);
@@ -434,201 +584,300 @@ export default function SmarterThan5thGraderApp() {
       uneesBeesSelections: [],
       londaPollPlayerId: null,
     });
-  };
+  }, []);
 
-  const resumeSession = () => {
+  const resumeSession = useCallback(() => {
     const s = persistedSessionRef.current ?? loadPersistedSession();
     if (!s) return;
     persistedSessionRef.current = s;
     setSessionName(s.sessionName);
     setGameState(deserializeGameState(s.gameState));
     setResumeOffered(false);
-  };
+  }, []);
 
-  const dismissResume = () => {
+  const dismissResume = useCallback(() => {
     setResumeOffered(false);
     clearPersistedSession();
     persistedSessionRef.current = null;
-  };
+  }, []);
 
-  const exportSessionLog = () => {
+  const exportSessionLog = useCallback(() => {
     const s = persistedSessionRef.current ?? loadPersistedSession();
     if (!s) return;
     const text = buildTextFileContent(s);
     downloadTextFile(`${s.sessionName}.txt`, text);
-  };
+  }, []);
 
-  const [hostPanelOpen, setHostPanelOpen] = useState(false);
-
-  /** Host-only: adjust total points (e.g. rule breaks). Does not auto-change subject-round score. */
-  const hostAdjustTotal = (playerId: string, delta: number) => {
+  const hostAdjustTotal = useCallback((playerId: string, delta: number) => {
     const name = gameState.players.find((p) => p.id === playerId)?.name ?? playerId;
     logScoreEvent(`HOST ADJUST total: ${name} ${delta >= 0 ? '+' : ''}${delta}`);
+    showScorePopup(playerId, delta);
     setGameState((prev) => ({
       ...prev,
       players: prev.players.map((p) =>
         p.id === playerId ? { ...p, totalScore: Math.max(0, p.totalScore + delta) } : p,
       ),
     }));
-  };
+    logScoreSnapshot(
+      gameState.players.map((p) =>
+        p.id === playerId ? { ...p, totalScore: Math.max(0, p.totalScore + delta) } : p,
+      ),
+      'HOST-ADJUST',
+    );
+  }, [gameState.players, logScoreEvent, logScoreSnapshot, showScorePopup]);
 
-  const subjectWinner = [...gameState.players].sort((a, b) => b.subjectScore - a.subjectScore)[0];
+  const handleCustomAdjust = useCallback((playerId: string) => {
+    const val = parseInt(customAdjust[playerId] ?? '0', 10);
+    if (isNaN(val) || val === 0) return;
+    hostAdjustTotal(playerId, val);
+    setCustomAdjust((prev) => ({ ...prev, [playerId]: '' }));
+  }, [customAdjust, hostAdjustTotal]);
+
+  const subjectWinner = useMemo(
+    () => [...gameState.players].sort((a, b) => b.subjectScore - a.subjectScore)[0],
+    [gameState.players],
+  );
+
+  const sortedPlayers = useMemo(
+    () => [...gameState.players].sort((a, b) => b.totalScore - a.totalScore),
+    [gameState.players],
+  );
+
+  const chooserName = useMemo(
+    () => gameState.players.find((p) => p.id === gameState.categoryChooserId)?.name,
+    [gameState.players, gameState.categoryChooserId],
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-brutal-black font-sans selection:bg-neon-green selection:text-brutal-black">
+    <div className="min-h-screen bg-brutal-black text-gallery-white font-sans noise-bg relative">
+      {/* Ambient gradient orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-electric-blue/8 blur-[120px]" />
+        <div className="absolute top-1/3 -left-20 w-80 h-80 rounded-full bg-deep-purple/8 blur-[100px]" />
+        <div className="absolute bottom-0 right-1/4 w-72 h-72 rounded-full bg-neon-green/5 blur-[100px]" />
+      </div>
+
+      {/* Score popups */}
+      <AnimatePresence>
+        {scorePopups.map((p) => (
+          <ScoreFloat key={p.id} popup={p} />
+        ))}
+      </AnimatePresence>
+
+      {/* Resume banner */}
       {resumeOffered && resumeSessionName && (
-        <div className="bg-amber-100 border-b-4 border-amber-500 px-4 py-3 flex flex-wrap items-center justify-between gap-3 max-w-7xl mx-auto">
-          <p className="font-mono text-sm font-bold">
+        <motion.div
+          initial={{ y: -60, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="relative z-50 bg-amber-glow/10 border-b border-amber-glow/30 px-6 py-4 flex flex-wrap items-center justify-between gap-3 max-w-7xl mx-auto"
+        >
+          <p className="font-mono text-sm font-bold text-amber-glow">
             Recover previous game &quot;{resumeSessionName}&quot;?
           </p>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={resumeSession}
-              className="px-4 py-2 bg-brutal-black text-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-brutal-black"
+              className="px-5 py-2 bg-amber-glow text-brutal-black font-mono text-xs font-bold uppercase rounded-lg hover:brightness-110 transition-all"
             >
               Resume
             </button>
             <button
               type="button"
               onClick={dismissResume}
-              className="px-4 py-2 bg-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-brutal-black"
+              className="px-5 py-2 bg-white/10 text-white font-mono text-xs font-bold uppercase rounded-lg border border-white/20 hover:bg-white/20 transition-all"
             >
               Start fresh
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
-      <header className="border-b-4 border-brutal-black bg-gradient-to-r from-[#0052cc] to-electric-blue text-gallery-white sticky top-0 z-50 shadow-md">
-        <div className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+
+      {/* ── Header ── */}
+      <header className="relative z-40 border-b border-white/10 bg-brutal-black/80 backdrop-blur-xl sticky top-0">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="bg-neon-green p-3 border-4 border-brutal-black brutal-shadow">
-              <Trophy className="w-8 h-8 text-brutal-black" />
+            <div className="relative">
+              <div className="bg-gradient-to-br from-neon-green to-electric-blue p-3 rounded-2xl">
+                <Trophy className="w-7 h-7 text-brutal-black" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-neon-green rounded-full animate-pulse" />
             </div>
             <div>
-              <h1 className="text-4xl font-display uppercase leading-none tracking-tighter">
+              <h1 className="text-2xl sm:text-3xl font-display uppercase leading-none tracking-tighter text-white">
                 Smarter Than a 5th Grader
               </h1>
-              <p className="text-sm font-mono uppercase tracking-widest text-neon-green font-bold">
+              <p className="text-xs font-mono uppercase tracking-widest text-neon-green/80 font-bold mt-0.5">
                 Hosted by Hamza
-              </p>
-              <p className="text-xs font-mono text-white/80 mt-1 max-w-md">
-                Host-only: you run the show, reveal answers, and score. Contestants use the screen only.
               </p>
             </div>
           </div>
 
           {gameState.gamePhase !== 'SETUP' && (
-            <div className="flex flex-wrap items-center gap-3 justify-end">
+            <div className="flex flex-wrap items-center gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setHostPanelOpen((o) => !o)}
-                className="flex items-center gap-2 px-3 py-2 bg-black/30 border-2 border-white/80 text-white font-mono font-bold uppercase text-xs rounded-lg"
-                title="Adjust totals if someone breaks rules"
+                className={cn(
+                  'flex items-center gap-2 px-3 py-2 font-mono font-bold uppercase text-xs rounded-xl border transition-all',
+                  hostPanelOpen
+                    ? 'bg-electric-blue text-white border-electric-blue'
+                    : 'bg-white/5 text-white/80 border-white/15 hover:bg-white/10',
+                )}
               >
                 <Settings2 className="w-4 h-4" />
-                Host scores
+                <span className="hidden sm:inline">Scores</span>
               </button>
-              {sessionName && (
-                <span className="hidden sm:inline font-mono text-xs uppercase text-neon-green/90 max-w-[200px] truncate" title={sessionName}>
-                  {sessionName}
-                </span>
-              )}
               {sessionName && (
                 <button
                   type="button"
                   onClick={exportSessionLog}
-                  className="px-3 py-2 bg-gallery-white text-brutal-black border-2 border-gallery-white font-mono font-bold uppercase text-xs rounded-lg"
+                  className="px-3 py-2 bg-white/5 border border-white/15 text-white/80 font-mono font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-all"
                 >
-                  Save log (.txt)
+                  Export
                 </button>
               )}
               <button
-                onClick={() => {
-                  resetGame();
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-brutal-black text-neon-green border-4 border-brutal-black font-mono font-bold uppercase text-xs brutal-shadow-sm rounded-lg"
+                onClick={resetGame}
+                className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/15 text-white/80 font-mono font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-all"
               >
-                <Home className="w-4 h-4" /> Home
+                <Home className="w-4 h-4" />
               </button>
-              <div className="flex items-center gap-3 bg-brutal-black px-6 py-3 border-2 border-gallery-white brutal-shadow rounded-lg">
-                <Users className="w-5 h-5 text-neon-green" />
-                <span className="text-lg font-black uppercase tracking-tighter">
-                  {gameState.players.length} Players
-                </span>
-              </div>
             </div>
           )}
         </div>
+
+        {/* Live scoreboard strip */}
         {gameState.gamePhase !== 'SETUP' && gameState.players.length > 0 && (
-          <div className="max-w-7xl mx-auto px-6 pb-4">
-            <div className="flex flex-wrap gap-3 text-xs font-mono font-bold text-white/95">
-              {gameState.players.map((p) => (
-                <span key={p.id} className="bg-black/25 px-3 py-1 rounded border border-white/30">
-                  {p.name}: {formatScore(p.totalScore)} total · {formatScore(p.subjectScore)} this round
+          <div className="max-w-7xl mx-auto px-6 pb-3">
+            <div className="flex flex-wrap gap-2">
+              {sortedPlayers.map((p, i) => (
+                <span
+                  key={p.id}
+                  className={cn(
+                    'inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-all',
+                    i === 0 ? 'bg-amber-glow/10 border-amber-glow/30 text-amber-glow' :
+                    'bg-white/5 border-white/10 text-white/70',
+                  )}
+                >
+                  {i === 0 && <Crown className="w-3 h-3" />}
+                  {p.name}: <span className="text-neon-green">{formatScore(p.totalScore)}</span>
                 </span>
               ))}
             </div>
-            <p className="mt-2 text-[11px] font-mono text-white/80 max-w-3xl">
-              Scoring: correct = grade value (G1 → +1 … G6 → +6). Lounda poll: ½ pts for caller. Unees Bees: pick 2 answers. Chooser wrong: −1. Others wrong: 0. Lifelines: once per player per game.
-            </p>
           </div>
         )}
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-16">
+      {/* ── Main ── */}
+      <main className="relative z-10 max-w-6xl mx-auto px-6 py-12 sm:py-16">
         <AnimatePresence mode="wait">
+
+          {/* ── SETUP ── */}
           {gameState.gamePhase === 'SETUP' && (
             <motion.div
               key="setup"
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -30 }}
+              transition={{ type: 'spring', stiffness: 100 }}
               className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center"
             >
               <div className="space-y-8">
-                <h2 className="text-8xl font-display uppercase leading-[0.85] tracking-tighter">
-                  Ready to <span className="text-electric-blue">Host</span>?
-                </h2>
-                <div className="bg-neon-green/20 p-4 border-l-8 border-neon-green">
-                  <p className="font-mono text-sm font-bold uppercase">
-                    Offline questions loaded. Start the show!
-                  </p>
+                <div>
+                  <motion.h2
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="text-6xl sm:text-8xl font-display uppercase leading-[0.85] tracking-tighter"
+                  >
+                    Ready to{' '}
+                    <span className="text-gradient">Host</span>?
+                  </motion.h2>
+                  <motion.p
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="text-white/50 font-mono text-sm mt-4 max-w-md"
+                  >
+                    Add players, choose subjects, and run the ultimate quiz show.
+                    Grade 1 = 1pt, Grade 6 = 6pts. Risk vs reward.
+                  </motion.p>
                 </div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex items-center gap-4 p-4 rounded-xl bg-neon-green/5 border border-neon-green/20"
+                >
+                  <Zap className="w-5 h-5 text-neon-green flex-shrink-0" />
+                  <p className="font-mono text-xs font-bold text-neon-green/80 uppercase">
+                    12 subjects · 6 difficulty grades · 2 lifelines · 5,000+ questions
+                  </p>
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-xs font-mono text-white/40 space-y-1"
+                >
+                  <p>Lounda poll: ask the room, ½ pts for caller (once/game).</p>
+                  <p>Unees Bees: contestant picks two answers (once/game).</p>
+                  <p>Chooser wrong: −1 pt. Others wrong: 0 pts.</p>
+                </motion.div>
               </div>
 
-              <div className="bg-gallery-white border-8 border-brutal-black p-10 brutal-shadow-blue space-y-10">
-                <div className="flex gap-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2, type: 'spring' }}
+                className="bg-white/[0.03] border border-white/10 rounded-3xl p-8 sm:p-10 space-y-8 backdrop-blur-sm"
+              >
+                <div className="flex gap-3">
                   <input
                     type="text"
                     value={newPlayerName}
                     onChange={(e) => setNewPlayerName(e.target.value)}
-                    placeholder="PLAYER NAME..."
-                    className="flex-1 bg-white border-4 border-brutal-black px-6 py-5 text-2xl font-black focus:outline-none"
+                    onKeyDown={(e) => e.key === 'Enter' && addPlayer()}
+                    placeholder="Player name..."
+                    className="flex-1 bg-white/5 border border-white/15 rounded-xl px-5 py-4 text-xl font-black text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-electric-blue/50 focus:border-electric-blue/50 transition-all"
                   />
                   <button
                     onClick={addPlayer}
-                    className="bg-brutal-black text-gallery-white px-10 py-5 text-2xl font-black uppercase transition-all"
+                    className="bg-electric-blue text-white px-6 py-4 text-lg font-black uppercase rounded-xl hover:brightness-110 active:scale-95 transition-all"
                   >
-                    Add
+                    <Plus className="w-6 h-6" />
                   </button>
                 </div>
 
-                <div className="space-y-4">
-                  {gameState.players.map((player) => (
-                    <div
-                      key={player.id}
-                      className="flex items-center justify-between bg-white border-4 border-brutal-black p-5 group hover:bg-neon-green"
-                    >
-                      <span className="text-3xl font-black uppercase tracking-tighter">{player.name}</span>
-                      <button
-                        onClick={() =>
-                          setGameState((prev) => ({ ...prev, players: prev.players.filter((p) => p.id !== player.id) }))
-                        }
+                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                  <AnimatePresence>
+                    {gameState.players.map((player, idx) => (
+                      <motion.div
+                        key={player.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-5 py-4 group hover:bg-white/8 transition-all"
                       >
-                        <Trash2 className="w-6 h-6" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-3">
+                          <span className="w-8 h-8 flex items-center justify-center rounded-lg bg-gradient-to-br from-electric-blue to-deep-purple text-white text-sm font-black">
+                            {idx + 1}
+                          </span>
+                          <span className="text-xl font-black uppercase tracking-tight">{player.name}</span>
+                        </div>
+                        <button
+                          onClick={() =>
+                            setGameState((prev) => ({ ...prev, players: prev.players.filter((p) => p.id !== player.id) }))
+                          }
+                          className="text-white/30 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
 
                 <button
@@ -651,23 +900,37 @@ export default function SmarterThan5thGraderApp() {
                     savePersistedSession(session);
                   }}
                   disabled={gameState.players.length < 1}
-                  className="w-full bg-electric-blue text-gallery-white py-8 text-5xl font-display uppercase brutal-shadow disabled:opacity-60"
+                  className="w-full relative overflow-hidden bg-gradient-to-r from-electric-blue to-deep-purple text-white py-6 text-3xl sm:text-4xl font-display uppercase rounded-2xl disabled:opacity-40 hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-electric-blue/20"
                 >
-                  Start Show
+                  <span className="relative z-10">Start Show</span>
                 </button>
-              </div>
+              </motion.div>
             </motion.div>
           )}
 
+          {/* ── CATEGORY SELECTION ── */}
           {gameState.gamePhase === 'CATEGORY_SELECTION' && (
-            <motion.div key="cat" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="space-y-16">
-              <h2 className="text-9xl font-display uppercase tracking-tighter text-center">
-                Who's <span className="text-stroke">Choosing?</span>
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-                {gameState.players.map((player) => (
-                  <button
+            <motion.div
+              key="cat"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 120 }}
+              className="space-y-12"
+            >
+              <div className="text-center">
+                <h2 className="text-6xl sm:text-8xl font-display uppercase tracking-tighter">
+                  Who's <span className="text-gradient-warm">Choosing</span>?
+                </h2>
+                <p className="text-white/40 font-mono text-sm mt-3">Select the contestant who picks the subject</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                {gameState.players.map((player, idx) => (
+                  <motion.button
                     key={player.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.08 }}
                     onClick={() =>
                       setGameState((prev) => ({
                         ...prev,
@@ -675,85 +938,119 @@ export default function SmarterThan5thGraderApp() {
                         gamePhase: 'GRADE_SELECTION',
                       }))
                     }
-                    className="p-10 bg-white border-8 border-brutal-black text-4xl font-display uppercase brutal-shadow"
+                    className="group p-8 bg-white/[0.03] border border-white/10 rounded-2xl text-center hover:bg-white/8 hover:border-electric-blue/40 active:scale-95 transition-all"
                   >
-                    {player.name}
-                  </button>
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-electric-blue to-deep-purple flex items-center justify-center text-2xl font-display text-white group-hover:scale-110 transition-transform">
+                      {player.name[0]}
+                    </div>
+                    <span className="text-2xl font-display uppercase">{player.name}</span>
+                    <p className="text-xs font-mono text-white/40 mt-2">{formatScore(player.totalScore)} pts</p>
+                  </motion.button>
                 ))}
               </div>
             </motion.div>
           )}
 
+          {/* ── GRADE SELECTION ── */}
           {gameState.gamePhase === 'GRADE_SELECTION' && (
-            <motion.div key="grade" initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} className="space-y-16">
-              <div className="flex justify-between items-end">
-                <h2 className="text-8xl font-display uppercase tracking-tighter">
-                  Pick the <span className="text-electric-blue">Battle</span>
-                </h2>
+            <motion.div
+              key="grade"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -40 }}
+              transition={{ type: 'spring', stiffness: 100 }}
+              className="space-y-12"
+            >
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+                <div>
+                  <p className="text-xs font-mono uppercase text-electric-blue/80 tracking-widest mb-1">
+                    {chooserName} is choosing · Q{gameState.questionsAnsweredInSubject + 1}/{QUESTIONS_PER_SUBJECT}
+                  </p>
+                  <h2 className="text-5xl sm:text-7xl font-display uppercase tracking-tighter">
+                    Pick the <span className="text-gradient">Battle</span>
+                  </h2>
+                </div>
+                <ProgressDots current={gameState.questionsAnsweredInSubject} total={QUESTIONS_PER_SUBJECT} />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {SUBJECTS.map((subject) => (
                   <button
                     key={subject}
                     onClick={() => setGameState((prev) => ({ ...prev, currentSubject: subject }))}
                     className={cn(
-                      'p-6 border-4 rounded-xl border-brutal-black text-xl font-black uppercase brutal-shadow transition-transform duration-150 active:scale-95',
-                      gameState.currentSubject === subject ? 'bg-electric-blue text-gallery-white' : 'bg-white hover:bg-neon-green',
+                      'p-4 rounded-xl border text-left font-black uppercase text-sm transition-all active:scale-95',
+                      gameState.currentSubject === subject
+                        ? 'bg-electric-blue/15 border-electric-blue/50 text-electric-blue ring-1 ring-electric-blue/30'
+                        : 'bg-white/[0.03] border-white/10 text-white/70 hover:bg-white/5 hover:border-white/20',
                     )}
                   >
+                    <span className="text-lg mr-2">{SUBJECT_ICONS[subject] ?? '📚'}</span>
                     {subject}
                   </button>
                 ))}
               </div>
 
               {gameState.currentSubject && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 pt-8">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="grid grid-cols-3 sm:grid-cols-6 gap-4 pt-4"
+                >
                   {GRADES.map((grade) => (
                     <button
                       key={grade}
                       onClick={() => selectGrade(grade)}
                       className={cn(
-                        'min-h-32 bg-white border-8 rounded-2xl border-brutal-black flex flex-col items-center justify-center gap-2 brutal-shadow transition-all duration-150 active:scale-95 hover:-translate-y-0.5 hover:bg-electric-blue hover:text-gallery-white',
-                        selectedGrade === grade && 'bg-electric-blue text-gallery-white',
+                        'relative overflow-hidden min-h-28 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-all active:scale-95 group',
+                        selectedGrade === grade
+                          ? 'bg-electric-blue border-electric-blue text-white'
+                          : 'bg-white/[0.03] border-white/15 hover:border-electric-blue/50 hover:bg-electric-blue/5',
                       )}
                     >
-                      <span className="text-6xl font-display leading-none">{grade}</span>
-                      <span className="text-sm font-mono font-bold uppercase tracking-wide">Grade</span>
+                      <span className="text-5xl font-display leading-none group-hover:scale-110 transition-transform">
+                        {grade}
+                      </span>
+                      <span className="text-xs font-mono font-bold uppercase text-white/50">
+                        +{grade} pts
+                      </span>
                     </button>
                   ))}
-                </div>
+                </motion.div>
               )}
             </motion.div>
           )}
 
+          {/* ── QUESTION ── */}
           {gameState.gamePhase === 'QUESTION' && gameState.currentQuestion && (
-            <motion.div key="q" initial={{ opacity: 0, scale: 1.1 }} animate={{ opacity: 1, scale: 1 }} className="space-y-12">
-              <div className="flex justify-between items-center border-b-8 border-brutal-black pb-8">
-                <p className="text-electric-blue font-display text-4xl uppercase">{gameState.currentSubject}</p>
-                <div
-                  className={cn(
-                    'flex items-center gap-3 px-6 py-3 border-4 border-brutal-black brutal-shadow',
-                    timeLeft <= 10 ? 'bg-red-500 text-white animate-pulse' : 'bg-neon-green',
-                  )}
-                >
-                  <TimerIcon className="w-6 h-6" />
-                  <span className="text-3xl font-black font-mono">{timeLeft}s</span>
+            <motion.div
+              key="q"
+              initial={{ opacity: 0, scale: 1.02 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ type: 'spring', stiffness: 120 }}
+              className="space-y-8"
+            >
+              {/* Question header */}
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-xs font-mono uppercase text-white/40 tracking-widest">
+                    {gameState.currentSubject} · Grade {gameState.currentGrade} · +{formatScore(pointsForCorrect(gameState.currentGrade ?? 1))} pts
+                    {gameState.londaPollPlayerId &&
+                      ` · Lounda: ${gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'} (½)`}
+                  </p>
+                  <ProgressDots current={gameState.questionsAnsweredInSubject} total={QUESTIONS_PER_SUBJECT} />
                 </div>
+                <TimerRing timeLeft={timeLeft} />
               </div>
 
-              <div className="bg-white border-8 border-brutal-black p-8 md:p-12 brutal-shadow-blue relative">
-                <p className="text-sm font-mono text-brutal-black/60 mb-2 uppercase tracking-widest">
-                  Grade {gameState.currentGrade ?? '?'} · +{formatScore(pointsForCorrect(gameState.currentGrade ?? 1))} pts
-                  {gameState.londaPollPlayerId &&
-                    ` · Lounda: ${gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'} (½ pts)`}
-                </p>
-
-                <h3 className="text-4xl md:text-5xl lg:text-6xl font-display leading-tight tracking-tight mb-10">
+              {/* Question card */}
+              <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-8 sm:p-10 backdrop-blur-sm">
+                <h3 className="text-3xl sm:text-4xl lg:text-5xl font-display leading-tight tracking-tight mb-8 text-white">
                   {gameState.currentQuestion.question}
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
                   {gameState.currentQuestion.options.map((option, idx) => {
                     const isCorrectOpt = option === gameState.currentQuestion!.answer;
                     const uneesOn = gameState.uneesBeesActive;
@@ -766,47 +1063,51 @@ export default function SmarterThan5thGraderApp() {
                           else setHostRevealAll(true);
                         }}
                         className={cn(
-                          'p-5 md:p-6 border-4 border-brutal-black text-xl md:text-2xl font-black text-left relative transition-colors rounded-xl',
+                          'p-5 rounded-xl border-2 text-lg sm:text-xl font-bold text-left transition-all active:scale-[0.98]',
                           hostRevealAll
                             ? isCorrectOpt
-                              ? 'bg-green-500 text-white border-green-800'
-                              : 'bg-red-500 text-white border-red-800'
+                              ? 'bg-neon-green/20 text-neon-green border-neon-green/50 ring-2 ring-neon-green/30'
+                              : 'bg-red-500/10 text-red-400 border-red-500/30'
                             : uneesOn
                               ? gameState.uneesBeesSelections.includes(option)
-                                ? 'bg-neon-green'
-                                : 'bg-gallery-white'
-                              : 'bg-gallery-white hover:bg-neutral-100',
+                                ? 'bg-neon-green/15 border-neon-green/40 text-neon-green'
+                                : 'bg-white/[0.03] border-white/10 text-white/70 hover:bg-white/5'
+                              : 'bg-white/[0.03] border-white/10 text-white/80 hover:bg-white/5 hover:border-white/20',
                         )}
                       >
-                        <span className="text-electric-blue mr-3 font-mono">{String.fromCharCode(65 + idx)}.</span>
+                        <span className="text-electric-blue mr-3 font-mono text-sm">{String.fromCharCode(65 + idx)}.</span>
                         {option}
                       </button>
                     );
                   })}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 mb-6">
+                {/* Action buttons */}
+                <div className="flex flex-wrap items-center gap-2 mb-4">
                   <button
                     type="button"
                     onClick={() => setHostRevealAll(true)}
-                    className="px-4 py-2 bg-brutal-black text-gallery-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-brutal-black"
+                    className="px-4 py-2 bg-white/10 text-white font-mono text-xs font-bold uppercase rounded-lg border border-white/15 hover:bg-white/15 transition-all"
                   >
-                    Show correct / wrong
+                    Reveal
                   </button>
-                  <button onClick={() => setShowAnswer(!showAnswer)} className="px-4 py-2 bg-electric-blue text-gallery-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-electric-blue">
-                    {showAnswer ? 'Hide Answer' : 'Reveal Answer'}
+                  <button
+                    onClick={() => setShowAnswer(!showAnswer)}
+                    className="px-4 py-2 bg-electric-blue/20 text-electric-blue font-mono text-xs font-bold uppercase rounded-lg border border-electric-blue/30 hover:bg-electric-blue/30 transition-all"
+                  >
+                    {showAnswer ? 'Hide' : 'Answer'}
                   </button>
                   <button
                     type="button"
                     onClick={nextQuestionSameRound}
-                    className="px-4 py-2 bg-gallery-white border-2 border-brutal-black font-mono font-bold uppercase text-xs rounded-lg"
+                    className="px-4 py-2 bg-white/5 border border-white/15 text-white/70 font-mono font-bold uppercase text-xs rounded-lg hover:bg-white/10 transition-all"
                   >
-                    Next question
+                    Next Q
                   </button>
                   <button
                     type="button"
                     onClick={alternateQuestion}
-                    className="px-4 py-2 bg-neon-green text-brutal-black border-2 border-brutal-black font-mono font-bold uppercase text-xs rounded-lg"
+                    className="px-4 py-2 bg-amber-glow/10 text-amber-glow border border-amber-glow/30 font-mono font-bold uppercase text-xs rounded-lg hover:bg-amber-glow/20 transition-all"
                   >
                     Alternate
                   </button>
@@ -823,28 +1124,37 @@ export default function SmarterThan5thGraderApp() {
                         londaPollPlayerId: null,
                       }));
                     }}
-                    className="px-4 py-2 bg-gallery-white border-2 border-brutal-black font-mono font-bold uppercase text-xs rounded-lg"
+                    className="px-4 py-2 bg-white/5 border border-white/15 text-white/50 font-mono font-bold uppercase text-xs rounded-lg hover:bg-white/10 transition-all"
                   >
                     Back
                   </button>
                 </div>
 
                 {showAnswer && (
-                  <div className="text-4xl md:text-5xl font-display uppercase text-neon-green bg-brutal-black px-8 py-4 mb-6 rounded-xl inline-block">
-                    {gameState.currentQuestion.answer}
-                  </div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="inline-block px-6 py-3 bg-neon-green/10 border border-neon-green/30 rounded-xl"
+                  >
+                    <span className="text-2xl sm:text-3xl font-display uppercase text-neon-green">
+                      {gameState.currentQuestion.answer}
+                    </span>
+                  </motion.div>
                 )}
-
               </div>
 
-              <div className="mt-8 rounded-2xl border-4 border-brutal-black bg-gradient-to-br from-neon-green/20 to-electric-blue/10 p-5 md:p-6">
-                <h2 className="text-xl font-display uppercase tracking-tight text-brutal-black mb-4">
-                  Lifelines
-                </h2>
+              {/* Lifelines */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 sm:p-6 backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <Star className="w-4 h-4 text-amber-glow" />
+                  <h2 className="text-sm font-display uppercase tracking-wide text-white/60">
+                    Lifelines
+                  </h2>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <p className="font-mono text-xs font-bold text-brutal-black/70 mb-2 uppercase">
-                      Unees Bees — contestant picks two answers (once/game)
+                    <p className="font-mono text-[10px] font-bold text-white/40 mb-2 uppercase tracking-wider">
+                      Unees Bees — pick two answers (once/game)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {gameState.players.map((p) =>
@@ -853,21 +1163,21 @@ export default function SmarterThan5thGraderApp() {
                             key={`unees-${p.id}`}
                             type="button"
                             onClick={() => activateUneesBees(p.id)}
-                            className="px-4 py-2 bg-electric-blue text-gallery-white border-2 border-brutal-black font-mono text-xs font-bold uppercase rounded-lg hover:brightness-110"
+                            className="px-3 py-1.5 bg-electric-blue/15 text-electric-blue border border-electric-blue/30 font-mono text-xs font-bold uppercase rounded-lg hover:bg-electric-blue/25 transition-all"
                           >
                             {p.name}
                           </button>
                         ) : null,
                       )}
                       {gameState.players.every((p) => p.hasUsedUneesBees === true) && (
-                        <p className="font-mono text-xs text-brutal-black/50">All used</p>
+                        <p className="font-mono text-xs text-white/30">All used</p>
                       )}
                     </div>
                   </div>
 
                   <div>
-                    <p className="font-mono text-xs font-bold text-brutal-black/70 mb-2 uppercase">
-                      Lounda poll — ask the room, ½ pts for caller (once/game)
+                    <p className="font-mono text-[10px] font-bold text-white/40 mb-2 uppercase tracking-wider">
+                      Lounda poll — ask the room, ½ pts (once/game)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {gameState.players.map((p) => {
@@ -879,53 +1189,51 @@ export default function SmarterThan5thGraderApp() {
                             key={`londa-${p.id}`}
                             type="button"
                             onClick={() => activateLondaPoll(p.id)}
-                            className="px-4 py-2 bg-brutal-black text-neon-green border-2 border-neon-green font-mono text-xs font-bold uppercase rounded-lg hover:brightness-110"
+                            className="px-3 py-1.5 bg-deep-purple/15 text-deep-purple border border-deep-purple/30 font-mono text-xs font-bold uppercase rounded-lg hover:bg-deep-purple/25 transition-all"
                           >
                             {p.name}
                           </button>
                         );
                       })}
                       {gameState.londaPollPlayerId != null && (
-                        <p className="font-mono text-xs font-bold text-electric-blue">
+                        <p className="font-mono text-xs font-bold text-deep-purple">
                           Active: {gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'}
                         </p>
                       )}
                       {gameState.players.every((p) => p.hasUsedLondaPoll === true) &&
                         gameState.londaPollPlayerId == null && (
-                          <p className="font-mono text-xs text-brutal-black/50">All used</p>
+                          <p className="font-mono text-xs text-white/30">All used</p>
                         )}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              {/* Score buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {gameState.players.map((player) => (
-                  <div key={player.id} className="space-y-4">
+                  <div key={player.id} className="space-y-2">
                     <button
                       type="button"
                       onClick={() => handleScore(player.id, true)}
                       className={cn(
-                        'w-full p-8 border-4 border-brutal-black text-2xl font-black uppercase brutal-shadow rounded-xl min-h-[56px] active:scale-[0.99]',
-                        player.id === gameState.categoryChooserId ? 'bg-electric-blue text-white' : 'bg-white hover:bg-neon-green',
+                        'w-full p-6 rounded-xl border-2 text-xl font-black uppercase transition-all active:scale-[0.97]',
+                        player.id === gameState.categoryChooserId
+                          ? 'bg-electric-blue/15 border-electric-blue/40 text-electric-blue hover:bg-electric-blue/25'
+                          : 'bg-white/[0.03] border-white/10 text-white/80 hover:bg-neon-green/10 hover:border-neon-green/30 hover:text-neon-green',
                       )}
                     >
-                      {player.name} (+
-                      {formatScore(
-                        pointsForCorrectWithLonda(
-                          gameState.currentGrade ?? 1,
-                          player.id,
-                          gameState.londaPollPlayerId,
-                        ),
-                      )}
-                      )
+                      {player.name}{' '}
+                      <span className="text-neon-green">
+                        (+{formatScore(pointsForCorrectWithLonda(gameState.currentGrade ?? 1, player.id, gameState.londaPollPlayerId))})
+                      </span>
                     </button>
 
                     {player.id === gameState.categoryChooserId && (
                       <button
                         type="button"
                         onClick={() => handleScore(player.id, false)}
-                        className="w-full py-4 bg-brutal-black text-red-400 border-4 border-brutal-black font-display uppercase rounded-xl"
+                        className="w-full py-3 bg-red-500/10 text-red-400 border border-red-500/30 font-mono font-bold uppercase text-xs rounded-xl hover:bg-red-500/20 transition-all"
                       >
                         Wrong (−1 chooser)
                       </button>
@@ -936,106 +1244,165 @@ export default function SmarterThan5thGraderApp() {
             </motion.div>
           )}
 
+          {/* ── SUBJECT RESULTS ── */}
           {gameState.gamePhase === 'SUBJECT_RESULTS' && subjectWinner && (
-            <motion.div key="res" initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} className="text-center space-y-16 py-12">
-              <h2 className="text-9xl font-display uppercase tracking-tighter">
-                Subject <span className="text-electric-blue">Hero</span>
-              </h2>
-              <div className="bg-brutal-black text-gallery-white p-16 brutal-shadow-green inline-block">
-                <h3 className="text-8xl font-display uppercase mb-4">{subjectWinner.name}</h3>
-                <p className="text-3xl font-mono font-bold text-neon-green uppercase">
+            <motion.div
+              key="res"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 100 }}
+              className="space-y-12 py-8"
+            >
+              <div className="text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                  className="inline-block mb-6"
+                >
+                  <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-amber-glow to-hot-pink flex items-center justify-center">
+                    <Trophy className="w-10 h-10 text-white" />
+                  </div>
+                </motion.div>
+                <h2 className="text-5xl sm:text-7xl font-display uppercase tracking-tighter">
+                  Round <span className="text-gradient-warm">Winner</span>
+                </h2>
+                <p className="text-white/40 font-mono text-sm mt-2">{gameState.currentSubject}</p>
+              </div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="max-w-md mx-auto text-center p-10 rounded-3xl bg-gradient-to-br from-amber-glow/10 to-hot-pink/5 border border-amber-glow/20"
+              >
+                <h3 className="text-5xl sm:text-6xl font-display uppercase mb-2">{subjectWinner.name}</h3>
+                <p className="text-3xl font-mono font-bold text-neon-green">
                   {formatScore(subjectWinner.subjectScore)} Points
                 </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  logScoreEvent('--- Round end / Next subject ---');
-                  setGameState((prev) => ({
-                    ...prev,
-                    players: prev.players.map((p) => ({ ...p, subjectScore: 0 })),
-                    gamePhase: 'CATEGORY_SELECTION',
-                    currentSubject: null,
-                    currentGrade: null,
-                    currentQuestion: null,
-                    categoryChooserId: null,
-                    questionsAnsweredInSubject: 0,
-                    uneesBeesActive: false,
-                    uneesBeesSelections: [],
-                  }));
-                }}
-                className="block mx-auto bg-brutal-black text-gallery-white px-20 py-8 text-5xl font-display uppercase brutal-shadow rounded-2xl"
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="max-w-lg mx-auto"
               >
-                Next Subject
-              </button>
+                <h3 className="text-sm font-mono uppercase text-white/40 tracking-widest mb-4 text-center">
+                  Full Leaderboard
+                </h3>
+                <Leaderboard players={gameState.players} showSubjectScore />
+              </motion.div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    logScoreEvent('--- Round end / Next subject ---');
+                    logScoreSnapshot(gameState.players, 'ROUND-END');
+                    setGameState((prev) => ({
+                      ...prev,
+                      players: prev.players.map((p) => ({ ...p, subjectScore: 0 })),
+                      gamePhase: 'CATEGORY_SELECTION',
+                      currentSubject: null,
+                      currentGrade: null,
+                      currentQuestion: null,
+                      categoryChooserId: null,
+                      questionsAnsweredInSubject: 0,
+                      uneesBeesActive: false,
+                      uneesBeesSelections: [],
+                    }));
+                  }}
+                  className="px-12 py-5 bg-gradient-to-r from-electric-blue to-deep-purple text-white text-2xl font-display uppercase rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-electric-blue/20"
+                >
+                  Next Subject
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
-      {hostPanelOpen && gameState.players.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-[60] max-h-[55vh] overflow-y-auto border-t-4 border-brutal-black bg-gallery-white shadow-[0_-8px_30px_rgba(0,0,0,0.15)]">
-          <div className="max-w-7xl mx-auto px-4 py-4 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-2xl font-display uppercase">Host · adjust totals</h2>
-              <button
-                type="button"
-                onClick={() => setHostPanelOpen(false)}
-                className="px-4 py-2 bg-brutal-black text-white font-mono text-xs font-bold uppercase rounded-lg"
-              >
-                Close
-              </button>
-            </div>
-            <p className="text-sm font-mono text-brutal-black/80">
-              Use this if someone breaks rules. Changes apply to <strong>total game score</strong> only (logged in session file).
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {gameState.players.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex flex-col gap-2 border-4 border-brutal-black rounded-xl p-4 bg-white"
+      {/* ── Host Panel (Floating Bottom Sheet) ── */}
+      <AnimatePresence>
+        {hostPanelOpen && gameState.players.length > 0 && (
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="fixed inset-x-0 bottom-0 z-[60] max-h-[60vh] overflow-y-auto border-t border-white/10 bg-brutal-black/95 backdrop-blur-xl shadow-[0_-8px_30px_rgba(0,0,0,0.5)]"
+          >
+            <div className="max-w-7xl mx-auto px-4 py-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-lg font-display uppercase text-white/80 flex items-center gap-2">
+                  <Settings2 className="w-4 h-4 text-electric-blue" />
+                  Host Controls · Adjust Points
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setHostPanelOpen(false)}
+                  className="px-4 py-2 bg-white/10 text-white font-mono text-xs font-bold uppercase rounded-lg border border-white/15 hover:bg-white/15 transition-all"
                 >
-                  <div className="font-black uppercase text-lg">
-                    {p.name}{' '}
-                    <span className="text-electric-blue font-mono text-base">({formatScore(p.totalScore)} total)</span>
+                  Close
+                </button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {gameState.players.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex flex-col gap-3 border border-white/10 rounded-xl p-4 bg-white/[0.03]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-black uppercase text-sm">{p.name}</span>
+                      <span className="text-neon-green font-mono font-bold text-lg">{formatScore(p.totalScore)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[-5, -2, -1].map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => hostAdjustTotal(p.id, d)}
+                          className="px-3 py-2 bg-red-500/15 text-red-400 font-mono text-xs font-bold uppercase rounded-lg border border-red-500/20 hover:bg-red-500/25 transition-all min-w-[44px]"
+                        >
+                          {d}
+                        </button>
+                      ))}
+                      {[1, 2, 5].map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => hostAdjustTotal(p.id, d)}
+                          className="px-3 py-2 bg-neon-green/15 text-neon-green font-mono text-xs font-bold uppercase rounded-lg border border-neon-green/20 hover:bg-neon-green/25 transition-all min-w-[44px]"
+                        >
+                          +{d}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={customAdjust[p.id] ?? ''}
+                        onChange={(e) => setCustomAdjust((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                        placeholder="Custom"
+                        className="flex-1 bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-electric-blue/50 min-w-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCustomAdjust(p.id)}
+                        className="px-3 py-2 bg-electric-blue/15 text-electric-blue font-mono text-xs font-bold uppercase rounded-lg border border-electric-blue/30 hover:bg-electric-blue/25 transition-all"
+                      >
+                        Apply
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => hostAdjustTotal(p.id, -1)}
-                      className="px-3 py-2 bg-red-500 text-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-brutal-black min-h-[44px]"
-                    >
-                      −1
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => hostAdjustTotal(p.id, -2)}
-                      className="px-3 py-2 bg-red-600 text-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-brutal-black min-h-[44px]"
-                    >
-                      −2
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => hostAdjustTotal(p.id, -5)}
-                      className="px-3 py-2 bg-red-700 text-white font-mono text-xs font-bold uppercase rounded-lg border-2 border-brutal-black min-h-[44px]"
-                    >
-                      −5
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => hostAdjustTotal(p.id, 1)}
-                      className="px-3 py-2 bg-neon-green text-brutal-black font-mono text-xs font-bold uppercase rounded-lg border-2 border-brutal-black min-h-[44px]"
-                    >
-                      +1 fix
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-
