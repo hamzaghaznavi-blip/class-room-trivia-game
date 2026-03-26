@@ -11,4 +11,16 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) return 'react-vendor';
+          if (id.includes('node_modules/motion')) return 'motion';
+          if (id.includes('node_modules/canvas-confetti')) return 'confetti';
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
 });

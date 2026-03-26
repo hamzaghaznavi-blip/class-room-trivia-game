@@ -1,7 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Trash2, Home, Settings2, Plus, Crown, Zap, Star } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { Trophy, Trash2, Home, Settings2, Plus, Crown, Zap, Star, Flag } from 'lucide-react';
+
+/** Lazy-load confetti so initial JS stays smaller and main thread work is deferred. */
+function fireConfetti(opts: {
+  particleCount?: number;
+  spread?: number;
+  origin?: { x?: number; y?: number };
+  colors?: string[];
+}) {
+  void import('canvas-confetti').then(({ default: confetti }) => {
+    confetti(opts);
+  });
+}
 
 import { cn } from './lib/utils';
 import type { GameState, Grade, Player, Prize, Question, Subject } from './types';
@@ -153,7 +164,7 @@ const SUBJECT_ICONS: Record<string, string> = {
 };
 
 /* ─── Timer Ring Component ─── */
-function TimerRing({ timeLeft, total = 30 }: { timeLeft: number; total?: number }) {
+const TimerRing = memo(function TimerRing({ timeLeft, total = 30 }: { timeLeft: number; total?: number }) {
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
   const progress = timeLeft / total;
@@ -188,10 +199,17 @@ function TimerRing({ timeLeft, total = 30 }: { timeLeft: number; total?: number 
       </span>
     </div>
   );
-}
+});
 
 /* ─── Leaderboard Component ─── */
-function Leaderboard({ players, showSubjectScore = false }: { players: Player[]; showSubjectScore?: boolean }) {
+const Leaderboard = memo(function Leaderboard({
+  players,
+  showSubjectScore = false,
+}: {
+  players: Player[];
+  showSubjectScore?: boolean;
+}) {
+  const reduceMotion = useReducedMotion();
   const sorted = useMemo(
     () => [...players].sort((a, b) => b.totalScore - a.totalScore),
     [players],
@@ -203,10 +221,13 @@ function Leaderboard({ players, showSubjectScore = false }: { players: Player[];
       {sorted.map((p, i) => (
         <motion.div
           key={p.id}
-          layout
-          initial={{ opacity: 0, x: -20 }}
+          initial={reduceMotion ? false : { opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: i * 0.08, type: 'spring', stiffness: 200 }}
+          transition={
+            reduceMotion
+              ? { duration: 0 }
+              : { delay: i * 0.06, type: 'spring', stiffness: 220, damping: 26 }
+          }
           className={cn(
             'flex items-center gap-3 px-4 py-3 rounded-xl border transition-all',
             i === 0 ? 'bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border-amber-500/30' :
@@ -227,10 +248,10 @@ function Leaderboard({ players, showSubjectScore = false }: { players: Player[];
       ))}
     </div>
   );
-}
+});
 
 /* ─── Score Popup Float ─── */
-function ScoreFloat({ popup }: { popup: ScorePopup }) {
+const ScoreFloat = memo(function ScoreFloat({ popup }: { popup: ScorePopup }) {
   return (
     <div className="score-popup fixed top-1/3 left-1/2 -translate-x-1/2 z-[100]">
       <span className={cn(
@@ -241,10 +262,10 @@ function ScoreFloat({ popup }: { popup: ScorePopup }) {
       </span>
     </div>
   );
-}
+});
 
 /* ─── Progress Dots ─── */
-function ProgressDots({ current, total }: { current: number; total: number }) {
+const ProgressDots = memo(function ProgressDots({ current, total }: { current: number; total: number }) {
   return (
     <div className="flex items-center gap-2">
       {Array.from({ length: total }, (_, i) => (
@@ -259,7 +280,7 @@ function ProgressDots({ current, total }: { current: number; total: number }) {
       <span className="text-xs font-mono text-white/50 ml-2">{current}/{total}</span>
     </div>
   );
-}
+});
 
 export default function SmarterThan5thGraderApp() {
   const [gameState, setGameState] = useState<GameState>({
@@ -308,23 +329,20 @@ export default function SmarterThan5thGraderApp() {
     }
   }, []);
 
+  /** One interval while running — do NOT depend on `timeLeft` or the timer resets every second. */
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-    if (isTimerRunning && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            setIsTimerRunning(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isTimerRunning, timeLeft]);
+    if (!isTimerRunning) return;
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          setIsTimerRunning(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isTimerRunning]);
 
   const persistNow = useCallback((gs: GameState, name: string | null) => {
     if (!name || !persistedSessionRef.current) return;
@@ -333,8 +351,19 @@ export default function SmarterThan5thGraderApp() {
     savePersistedSession(s);
   }, []);
 
+  const gameStateForPersistRef = useRef(gameState);
   useEffect(() => {
-    if (sessionName) persistNow(gameState, sessionName);
+    gameStateForPersistRef.current = gameState;
+  }, [gameState]);
+
+  useEffect(() => {
+    if (!sessionName) return;
+    const id = window.setTimeout(() => {
+      persistNow(gameStateForPersistRef.current, sessionName);
+    }, 280);
+    return () => {
+      window.clearTimeout(id);
+    };
   }, [gameState, sessionName, persistNow]);
 
   useEffect(() => {
@@ -470,7 +499,7 @@ export default function SmarterThan5thGraderApp() {
     const pts = pointsForCorrectWithLonda(grade, playerId, gameState.londaPollPlayerId);
 
     if (isCorrect) {
-      confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 }, colors: ['#00FF88', '#3B82F6', '#F59E0B'] });
+      fireConfetti({ particleCount: 120, spread: 70, origin: { y: 0.6 }, colors: ['#00FF88', '#3B82F6', '#F59E0B'] });
     }
 
     setIsTimerRunning(false);
@@ -586,6 +615,20 @@ export default function SmarterThan5thGraderApp() {
     });
   }, []);
 
+  const endGame = useCallback(() => {
+    logScoreEvent('=== GAME OVER ===');
+    logScoreSnapshot(gameState.players, 'FINAL');
+    fireConfetti({ particleCount: 300, spread: 120, origin: { y: 0.4 }, colors: ['#00FF88', '#3B82F6', '#F59E0B', '#EC4899', '#8B5CF6'] });
+    setGameState((prev) => ({
+      ...prev,
+      gamePhase: 'GAME_OVER',
+      currentQuestion: null,
+      currentSubject: null,
+      currentGrade: null,
+    }));
+    setIsTimerRunning(false);
+  }, [gameState.players, logScoreEvent, logScoreSnapshot]);
+
   const resumeSession = useCallback(() => {
     const s = persistedSessionRef.current ?? loadPersistedSession();
     if (!s) return;
@@ -657,12 +700,10 @@ export default function SmarterThan5thGraderApp() {
         <div className="absolute bottom-0 right-1/4 w-72 h-72 rounded-full bg-neon-green/5 blur-[100px]" />
       </div>
 
-      {/* Score popups */}
-      <AnimatePresence>
-        {scorePopups.map((p) => (
-          <ScoreFloat key={p.id} popup={p} />
-        ))}
-      </AnimatePresence>
+      {/* Score popups (plain DOM — no layout animation cost) */}
+      {scorePopups.map((p) => (
+        <ScoreFloat key={p.id} popup={p} />
+      ))}
 
       {/* Resume banner */}
       {resumeOffered && resumeSessionName && (
@@ -737,6 +778,14 @@ export default function SmarterThan5thGraderApp() {
                   Export
                 </button>
               )}
+              <button
+                type="button"
+                onClick={endGame}
+                className="flex items-center gap-2 px-3 py-2 bg-red-500/15 border border-red-500/30 text-red-400 font-mono font-bold uppercase text-xs rounded-xl hover:bg-red-500/25 transition-all"
+              >
+                <Flag className="w-4 h-4" />
+                <span className="hidden sm:inline">End</span>
+              </button>
               <button
                 onClick={resetGame}
                 className="flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/15 text-white/80 font-mono font-bold uppercase text-xs rounded-xl hover:bg-white/10 transition-all"
@@ -1044,13 +1093,13 @@ export default function SmarterThan5thGraderApp() {
                 <TimerRing timeLeft={timeLeft} />
               </div>
 
-              {/* Question card */}
-              <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-8 sm:p-10 backdrop-blur-sm">
-                <h3 className="text-3xl sm:text-4xl lg:text-5xl font-display leading-tight tracking-tight mb-8 text-white">
+              {/* Question card — THE hero of the page */}
+              <div className="bg-white/[0.04] border border-white/10 rounded-3xl p-8 sm:p-12 lg:p-14 backdrop-blur-sm">
+                <h3 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-display leading-[1.08] tracking-tight mb-10 text-white">
                   {gameState.currentQuestion.question}
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
                   {gameState.currentQuestion.options.map((option, idx) => {
                     const isCorrectOpt = option === gameState.currentQuestion!.answer;
                     const uneesOn = gameState.uneesBeesActive;
@@ -1063,7 +1112,7 @@ export default function SmarterThan5thGraderApp() {
                           else setHostRevealAll(true);
                         }}
                         className={cn(
-                          'p-5 rounded-xl border-2 text-lg sm:text-xl font-bold text-left transition-all active:scale-[0.98]',
+                          'p-5 rounded-xl border-2 text-xl sm:text-2xl font-bold text-left transition-all active:scale-[0.98]',
                           hostRevealAll
                             ? isCorrectOpt
                               ? 'bg-neon-green/20 text-neon-green border-neon-green/50 ring-2 ring-neon-green/30'
@@ -1075,7 +1124,7 @@ export default function SmarterThan5thGraderApp() {
                               : 'bg-white/[0.03] border-white/10 text-white/80 hover:bg-white/5 hover:border-white/20',
                         )}
                       >
-                        <span className="text-electric-blue mr-3 font-mono text-sm">{String.fromCharCode(65 + idx)}.</span>
+                        <span className="text-electric-blue mr-3 font-mono text-base">{String.fromCharCode(65 + idx)}.</span>
                         {option}
                       </button>
                     );
@@ -1321,6 +1370,128 @@ export default function SmarterThan5thGraderApp() {
               </div>
             </motion.div>
           )}
+          {/* ── GAME OVER ── */}
+          {gameState.gamePhase === 'GAME_OVER' && (() => {
+            const sorted = [...gameState.players].sort((a, b) => b.totalScore - a.totalScore);
+            const champion = sorted[0];
+            return (
+              <motion.div
+                key="game-over"
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 80 }}
+                className="space-y-14 py-10"
+              >
+                <div className="text-center space-y-6">
+                  <motion.div
+                    initial={{ scale: 0, rotate: -20 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: 'spring', stiffness: 150 }}
+                    className="inline-block"
+                  >
+                    <div className="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-amber-glow via-hot-pink to-deep-purple flex items-center justify-center shadow-[0_0_60px_rgba(245,158,11,0.35)]">
+                      <Crown className="w-14 h-14 text-white drop-shadow-lg" />
+                    </div>
+                  </motion.div>
+
+                  <h2 className="text-5xl sm:text-7xl lg:text-8xl font-display uppercase tracking-tighter">
+                    Game <span className="text-gradient-warm">Over</span>
+                  </h2>
+                  <p className="text-white/40 font-mono text-sm tracking-widest uppercase">Final Results</p>
+                </div>
+
+                {champion && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="max-w-lg mx-auto text-center p-12 rounded-3xl bg-gradient-to-br from-amber-glow/10 via-hot-pink/5 to-deep-purple/5 border border-amber-glow/20 shadow-[0_0_40px_rgba(245,158,11,0.1)]"
+                  >
+                    <p className="text-white/50 font-mono text-xs uppercase tracking-[0.3em] mb-3">Champion</p>
+                    <h3 className="text-6xl sm:text-7xl font-display uppercase mb-4 text-gradient-warm">{champion.name}</h3>
+                    <p className="text-4xl font-mono font-bold text-neon-green">
+                      {formatScore(champion.totalScore)} Points
+                    </p>
+                  </motion.div>
+                )}
+
+                <motion.div
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="max-w-lg mx-auto"
+                >
+                  <h3 className="text-sm font-mono uppercase text-white/40 tracking-widest mb-4 text-center">
+                    Final Standings
+                  </h3>
+                  <div className="space-y-2">
+                    {sorted.map((p, i) => (
+                      <motion.div
+                        key={p.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.7 + i * 0.1 }}
+                        className={cn(
+                          'flex items-center justify-between p-4 rounded-xl border',
+                          i === 0
+                            ? 'bg-amber-glow/10 border-amber-glow/30'
+                            : i === 1
+                              ? 'bg-white/[0.04] border-white/15'
+                              : i === 2
+                                ? 'bg-white/[0.03] border-white/10'
+                                : 'bg-white/[0.02] border-white/5',
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            'w-8 h-8 rounded-full flex items-center justify-center text-sm font-mono font-bold',
+                            i === 0 ? 'bg-amber-glow/20 text-amber-glow' : 'bg-white/10 text-white/40',
+                          )}>
+                            {i + 1}
+                          </span>
+                          <span className="font-black uppercase text-sm">{p.name}</span>
+                        </div>
+                        <span className="font-mono font-bold text-neon-green text-lg">{formatScore(p.totalScore)}</span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1 }}
+                  className="flex flex-col sm:flex-row items-center justify-center gap-4"
+                >
+                  <button
+                    type="button"
+                    onClick={resetGame}
+                    className="px-12 py-5 bg-gradient-to-r from-electric-blue to-deep-purple text-white text-2xl font-display uppercase rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-electric-blue/20"
+                  >
+                    New Game
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const logs = localStorage.getItem('game_session_log');
+                      if (!logs) return;
+                      const blob = new Blob([logs], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `game-log-${new Date().toISOString().slice(0, 10)}.txt`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-8 py-5 bg-white/5 border border-white/15 text-white/70 text-lg font-display uppercase rounded-2xl hover:bg-white/10 active:scale-[0.98] transition-all"
+                  >
+                    Download Log
+                  </button>
+                </motion.div>
+              </motion.div>
+            );
+          })()}
         </AnimatePresence>
       </main>
 

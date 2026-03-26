@@ -45,7 +45,7 @@ export interface GameState {
   currentSubject: Subject | null;
   currentGrade: Grade | null;
   currentQuestion: Question | null;
-  gamePhase: 'SETUP' | 'CATEGORY_SELECTION' | 'GRADE_SELECTION' | 'QUESTION' | 'SUBJECT_RESULTS';
+  gamePhase: 'SETUP' | 'CATEGORY_SELECTION' | 'GRADE_SELECTION' | 'QUESTION' | 'SUBJECT_RESULTS' | 'GAME_OVER';
   prizes: Prize[];
   selectedPrize: Prize | null;
   usedQuestionIds: Set<string>;
