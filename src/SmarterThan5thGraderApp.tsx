@@ -59,6 +59,7 @@ const PRIZE_TABLE: Prize[] = [
 ];
 
 import { getFactsForSubjectGrade, getQuestionPoolSize } from './questionBank';
+import { WowAmbience, type WowMode } from './WowAmbience';
 
 const toSlug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
@@ -391,6 +392,17 @@ export default function SmarterThan5thGraderApp() {
     savePersistedSession(persistedSessionRef.current);
   }, []);
 
+  /** Each time a new question appears: snapshot scores to log + flush autosave (session must be started). */
+  useEffect(() => {
+    const gs = gameStateForPersistRef.current;
+    if (gs.gamePhase !== 'QUESTION' || !gs.currentQuestion) return;
+    const subj = gs.currentSubject ?? '?';
+    const grade = gs.currentGrade ?? 1;
+    const qid = gs.currentQuestion.id;
+    logScoreSnapshot(gs.players, `Q on screen: ${subj} G${grade} [${qid}]`);
+    if (sessionName) persistNow(gs, sessionName);
+  }, [gameState.currentQuestion?.id, gameState.gamePhase, sessionName, logScoreSnapshot, persistNow]);
+
   const showScorePopup = useCallback((playerId: string, delta: number) => {
     const popup: ScorePopup = {
       id: Math.random().toString(36).slice(2, 9),
@@ -691,14 +703,22 @@ export default function SmarterThan5thGraderApp() {
     [gameState.players, gameState.categoryChooserId],
   );
 
+  /** Visual-only “game show” ambience — does not affect gameplay. */
+  const wowMode = useMemo((): WowMode => {
+    if (gameState.gamePhase === 'QUESTION' && gameState.currentGrade != null) {
+      const g = gameState.currentGrade;
+      if (g <= 3) return 'warm';
+      return 'hot';
+    }
+    if (gameState.gamePhase === 'GAME_OVER' || gameState.gamePhase === 'SUBJECT_RESULTS') {
+      return 'finale';
+    }
+    return 'idle';
+  }, [gameState.gamePhase, gameState.currentGrade]);
+
   return (
     <div className="min-h-screen bg-brutal-black text-gallery-white font-sans noise-bg relative">
-      {/* Ambient gradient orbs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-electric-blue/8 blur-[120px]" />
-        <div className="absolute top-1/3 -left-20 w-80 h-80 rounded-full bg-deep-purple/8 blur-[100px]" />
-        <div className="absolute bottom-0 right-1/4 w-72 h-72 rounded-full bg-neon-green/5 blur-[100px]" />
-      </div>
+      <WowAmbience mode={wowMode} />
 
       {/* Score popups (plain DOM — no layout animation cost) */}
       {scorePopups.map((p) => (
@@ -1093,8 +1113,15 @@ export default function SmarterThan5thGraderApp() {
                 <TimerRing timeLeft={timeLeft} />
               </div>
 
-              {/* Question card — THE hero of the page */}
-              <div className="bg-white/[0.04] border border-white/10 rounded-3xl p-8 sm:p-12 lg:p-14 backdrop-blur-sm">
+              {/* Question card — THE hero of the page (rim: calmer G1–3, intense G4–6) */}
+              <div
+                className={cn(
+                  'relative rounded-3xl p-[1px] wow-q-frame',
+                  (gameState.currentGrade ?? 1) <= 3 && 'wow-q-frame--warm',
+                  (gameState.currentGrade ?? 1) >= 4 && 'wow-q-frame--hot',
+                )}
+              >
+                <div className="bg-white/[0.04] rounded-3xl p-8 sm:p-12 lg:p-14 backdrop-blur-sm border border-white/[0.07]">
                 <h3 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-display leading-[1.08] tracking-tight mb-10 text-white">
                   {gameState.currentQuestion.question}
                 </h3>
@@ -1190,6 +1217,7 @@ export default function SmarterThan5thGraderApp() {
                     </span>
                   </motion.div>
                 )}
+                </div>
               </div>
 
               {/* Lifelines */}
