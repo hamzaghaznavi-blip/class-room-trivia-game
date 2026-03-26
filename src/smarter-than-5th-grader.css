@@ -228,14 +228,14 @@
 /* Grades 1–3: cooler, slower, more blue */
 .wow-mesh--warm {
   opacity: 0.48;
-  animation-duration: 26s;
+  animation-duration: 18s;
   filter: saturate(0.85);
 }
 
 /* Grades 4–6: “screen heats up” — brighter, faster, warmer tint (synced with rapid timer) */
 .wow-mesh--hot {
   opacity: 0.92;
-  animation-duration: 7s;
+  animation-duration: 5s;
   filter: saturate(1.35) hue-rotate(-8deg);
   background:
     radial-gradient(ellipse 85% 50% at 45% 35%, rgba(245, 158, 11, 0.18), transparent 55%),
@@ -283,7 +283,7 @@
 }
 
 .wow-beams--hot {
-  animation-duration: 22s;
+  animation-duration: 14s;
   opacity: 0.72;
   background: conic-gradient(
     from 200deg at 50% 118%,
@@ -399,7 +399,7 @@
 }
 
 .wow-q-frame--hot {
-  animation-duration: 3s;
+  animation-duration: 2.2s;
   filter: saturate(1.2);
   box-shadow:
     0 0 80px rgba(245, 158, 11, 0.2),

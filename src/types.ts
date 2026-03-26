@@ -5,7 +5,6 @@ export type Subject =
   | 'Geography'
   | 'World Religion & Mythology'
   | 'General Science'
-  | 'Islam'
   | 'Cricket'
   | 'Pop Culture & Sex Ed'
   | 'Sports'

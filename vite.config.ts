@@ -3,8 +3,9 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 
+/** Must match the GitHub repo name for default Pages hosting. If the repo is still `smarter-than-5th-grader`, use that path until you rename. */
 export default defineConfig({
-  base: '/smarter-than-5th-grader/',
+  base: '/class-room-trivia-game/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

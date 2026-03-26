@@ -1,6 +1,20 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
-import { Trophy, Trash2, Home, Settings2, Plus, Crown, Zap, Star, Flag, Laugh } from 'lucide-react';
+import {
+  Trophy,
+  Trash2,
+  Home,
+  Settings2,
+  Plus,
+  Crown,
+  Zap,
+  Star,
+  Flag,
+  Laugh,
+  Link2,
+  Copy,
+  Check,
+} from 'lucide-react';
 
 /** Lazy-load confetti so initial JS stays smaller and main thread work is deferred. */
 function fireConfetti(opts: {
@@ -15,8 +29,9 @@ function fireConfetti(opts: {
 }
 
 import { cn } from './lib/utils';
-import type { GameState, Grade, Player, Prize, Question, Subject } from './types';
+import type { GameState, Grade, Player, Prize, PresentationMode, Question, Subject } from './types';
 import { pickRandomInformalRoast } from './informalRoasts';
+import { cancelInformalSpeech, speakInformalRoast, warmupSpeechSynthesis } from './informalRoastVoice';
 import { playWrongAnswerSound } from './wrongAnswerSound';
 import {
   appendLogLine,
@@ -38,7 +53,6 @@ const SUBJECTS: Subject[] = [
   'Geography',
   'World Religion & Mythology',
   'General Science',
-  'Islam',
   'Cricket',
   'Pop Culture & Sex Ed',
   'Sports',
@@ -49,9 +63,27 @@ const SUBJECTS: Subject[] = [
 const GRADES: Grade[] = [1, 2, 3, 4, 5, 6];
 const QUESTIONS_PER_SUBJECT = 5;
 
-/** Grades 1–3: full clock. Grades 4–6: rapid-fire round. */
-const TIMER_SECONDS_RELAXED = 30;
-const TIMER_SECONDS_RAPID = 12;
+/** Grades 1–3: full clock. Grades 4–6: rapid-fire round. Fast pacing. */
+const TIMER_SECONDS_RELAXED = 14;
+const TIMER_SECONDS_RAPID = 6;
+
+function readInitialPresentationMode(): PresentationMode {
+  if (typeof window === 'undefined') return 'formal';
+  try {
+    const m = new URLSearchParams(window.location.search).get('mode');
+    if (m === 'informal') return 'informal';
+    if (m === 'formal') return 'formal';
+  } catch {
+    /* ignore */
+  }
+  return 'formal';
+}
+
+function shareUrlForMode(mode: PresentationMode): string {
+  if (typeof window === 'undefined') return '';
+  const path = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+  return `${window.location.origin}${path}?mode=${mode}`;
+}
 
 function secondsForGrade(grade: Grade | null | undefined): number {
   if (grade == null) return TIMER_SECONDS_RELAXED;
@@ -167,7 +199,6 @@ const SUBJECT_ICONS: Record<string, string> = {
   'Geography': '🌍',
   'World Religion & Mythology': '⛩️',
   'General Science': '🔬',
-  'Islam': '☪️',
   'Cricket': '🏏',
   'Pop Culture & Sex Ed': '🎭',
   'Sports': '⚽',
@@ -176,7 +207,7 @@ const SUBJECT_ICONS: Record<string, string> = {
 };
 
 /* ─── Timer Ring Component ─── */
-const TimerRing = memo(function TimerRing({ timeLeft, total = 30 }: { timeLeft: number; total?: number }) {
+const TimerRing = memo(function TimerRing({ timeLeft, total = TIMER_SECONDS_RELAXED }: { timeLeft: number; total?: number }) {
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
   const progress = Math.min(1, Math.max(0, timeLeft / total));
@@ -298,7 +329,7 @@ const ProgressDots = memo(function ProgressDots({ current, total }: { current: n
 });
 
 export default function SmarterThan5thGraderApp() {
-  const [gameState, setGameState] = useState<GameState>({
+  const [gameState, setGameState] = useState<GameState>(() => ({
     players: [],
     categoryChooserId: null,
     currentSubject: null,
@@ -313,8 +344,8 @@ export default function SmarterThan5thGraderApp() {
     uneesBeesActive: false,
     uneesBeesSelections: [],
     londaPollPlayerId: null,
-    presentationMode: 'formal',
-  });
+    presentationMode: readInitialPresentationMode(),
+  }));
 
   const [newPlayerName, setNewPlayerName] = useState('');
   const [showAnswer, setShowAnswer] = useState(false);
@@ -331,12 +362,36 @@ export default function SmarterThan5thGraderApp() {
   const [customAdjust, setCustomAdjust] = useState<Record<string, string>>({});
   /** Informal mode: random Urdu roast line (G4–6) after wrong answer */
   const [informalRoast, setInformalRoast] = useState<string | null>(null);
+  const [copiedModeLink, setCopiedModeLink] = useState<PresentationMode | null>(null);
 
   useEffect(() => {
     if (!informalRoast) return;
-    const t = window.setTimeout(() => setInformalRoast(null), 4500);
+    const t = window.setTimeout(() => setInformalRoast(null), 5200);
     return () => window.clearTimeout(t);
   }, [informalRoast]);
+
+  /** Bookmarkable Formal / Informal entry (setup only). */
+  useEffect(() => {
+    if (gameState.gamePhase !== 'SETUP') return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('mode', gameState.presentationMode);
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    } catch {
+      /* ignore */
+    }
+  }, [gameState.presentationMode, gameState.gamePhase]);
+
+  const copyModeLink = useCallback(async (mode: PresentationMode) => {
+    const url = shareUrlForMode(mode);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedModeLink(mode);
+      window.setTimeout(() => setCopiedModeLink(null), 2200);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const resetQuestionUI = useCallback(() => {
     setHostRevealAll(false);
@@ -537,9 +592,14 @@ export default function SmarterThan5thGraderApp() {
       fireConfetti({ particleCount: 120, spread: 70, origin: { y: 0.6 }, colors: ['#00FF88', '#3B82F6', '#F59E0B'] });
     }
     if (!isCorrect && gameState.presentationMode === 'informal') {
-      playWrongAnswerSound();
+      cancelInformalSpeech();
+      playWrongAnswerSound({ loud: true });
       if (grade >= 4) {
-        setInformalRoast(pickRandomInformalRoast());
+        const roast = pickRandomInformalRoast();
+        setInformalRoast(roast.text);
+        window.setTimeout(() => {
+          speakInformalRoast(roast.text, roast.voice);
+        }, 140);
       }
     }
 
@@ -827,17 +887,17 @@ export default function SmarterThan5thGraderApp() {
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-neon-green rounded-full animate-pulse" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-display uppercase leading-none tracking-tighter text-white">
-                Formal
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-display uppercase leading-none tracking-tight text-white">
+                Class Room Trivia Game
               </h1>
-              <p className="text-xs font-mono uppercase tracking-widest text-white/50 font-bold mt-0.5">
+              <p className="text-[10px] sm:text-xs font-mono uppercase tracking-widest text-white/45 font-bold mt-1">
                 Smarter Than a 5th Grader
               </p>
-              <p className="text-xs font-mono uppercase tracking-widest text-neon-green/80 font-bold mt-0.5">
+              <p className="text-[10px] sm:text-xs font-mono uppercase tracking-widest text-neon-green/90 font-bold mt-0.5">
                 {gameState.presentationMode === 'informal' ? (
-                  <span className="text-hot-pink">Informal · buzzer + Urdu banter (grades 4–6)</span>
+                  <span className="text-hot-pink">Informal · buzzer + voice roasts (G4–6)</span>
                 ) : (
-                  <>Hosted by Hamza</>
+                  <span className="text-neon-green/90">Formal · silent scoring · executive mode</span>
                 )}
               </p>
             </div>
@@ -927,19 +987,18 @@ export default function SmarterThan5thGraderApp() {
                     initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="text-6xl sm:text-8xl font-display uppercase leading-[0.85] tracking-tighter"
+                    className="text-5xl sm:text-7xl md:text-8xl font-display uppercase leading-[0.88] tracking-tighter"
                   >
-                    Ready to{' '}
-                    <span className="text-gradient">Host</span>?
+                    <span className="text-gradient">READY TO PLAY</span>
                   </motion.h2>
                   <motion.p
                     initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="text-white/50 font-mono text-sm mt-4 max-w-md"
+                    className="text-white/55 font-mono text-sm mt-5 max-w-lg leading-relaxed"
                   >
-                    Add players, choose subjects, and run the ultimate quiz show.
-                    Grade 1 = 1pt, Grade 6 = 6pts. Risk vs reward.
+                    Add players, pick Formal or Informal, and run a fast-paced live quiz.
+                    Grade 1 = 1pt → Grade 6 = 6pts. Sharp timers. Built for the big screen.
                   </motion.p>
                 </div>
                 <motion.div
@@ -950,7 +1009,7 @@ export default function SmarterThan5thGraderApp() {
                 >
                   <Zap className="w-5 h-5 text-neon-green flex-shrink-0" />
                   <p className="font-mono text-xs font-bold text-neon-green/80 uppercase">
-                    12 subjects · 6 difficulty grades · 2 lifelines · 5,000+ questions
+                    11 subjects · 6 grades · 2 lifelines · 5,000+ questions · rapid rounds
                   </p>
                 </motion.div>
                 <motion.div
@@ -969,7 +1028,7 @@ export default function SmarterThan5thGraderApp() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2, type: 'spring' }}
-                className="bg-white/[0.03] border border-white/10 rounded-3xl p-8 sm:p-10 space-y-8 backdrop-blur-sm"
+                className="bg-white/[0.04] border border-white/10 rounded-3xl p-8 sm:p-10 space-y-8 backdrop-blur-md shadow-2xl shadow-black/50 ring-1 ring-white/[0.07]"
               >
                 <div className="flex gap-3">
                   <input
@@ -1048,13 +1107,58 @@ export default function SmarterThan5thGraderApp() {
                     </button>
                   </div>
                   <p className="text-[11px] font-mono text-white/35 leading-relaxed">
-                    Informal: wrong-answer buzzer + random Urdu roast (grades 4–6 only). Same scoring.
+                    Informal: loud buzzer + spoken roasts (Urdu male / Punjabi female mix, browser voices).
+                    Grades 4–6. Formal: no sound.
                   </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 space-y-3">
+                  <div className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider text-white/45">
+                    <Link2 className="w-3.5 h-3.5" />
+                    Direct links (bookmark or share)
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void copyModeLink('formal')}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-neon-green/25 bg-neon-green/5 px-4 py-3 text-left font-mono text-[11px] text-neon-green/90 hover:bg-neon-green/10 transition-colors"
+                    >
+                      <span className="truncate font-bold uppercase">Formal URL</span>
+                      {copiedModeLink === 'formal' ? (
+                        <Check className="w-4 h-4 shrink-0 text-neon-green" />
+                      ) : (
+                        <Copy className="w-4 h-4 shrink-0 opacity-70" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void copyModeLink('informal')}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-hot-pink/25 bg-hot-pink/5 px-4 py-3 text-left font-mono text-[11px] text-hot-pink/90 hover:bg-hot-pink/10 transition-colors"
+                    >
+                      <span className="truncate font-bold uppercase">Informal URL</span>
+                      {copiedModeLink === 'informal' ? (
+                        <Check className="w-4 h-4 shrink-0 text-hot-pink" />
+                      ) : (
+                        <Copy className="w-4 h-4 shrink-0 opacity-70" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 text-[10px] font-mono text-white/30 break-all leading-snug">
+                    <p>
+                      <span className="text-neon-green/55 font-bold uppercase mr-1.5">Formal</span>
+                      {shareUrlForMode('formal')}
+                    </p>
+                    <p>
+                      <span className="text-hot-pink/55 font-bold uppercase mr-1.5">Informal</span>
+                      {shareUrlForMode('informal')}
+                    </p>
+                  </div>
                 </div>
 
                 <button
                   onClick={() => {
                     if (gameState.players.length < 1) return;
+                    warmupSpeechSynthesis();
                     const next: GameState = { ...gameState, gamePhase: 'CATEGORY_SELECTION' };
                     setGameState(next);
                     const name = randomSessionName();

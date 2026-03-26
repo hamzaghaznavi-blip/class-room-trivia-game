@@ -14,7 +14,8 @@ function getCtx(): AudioContext | null {
   }
 }
 
-export function playWrongAnswerSound(): void {
+export function playWrongAnswerSound(opts?: { loud?: boolean }): void {
+  const loud = opts?.loud === true;
   const audioCtx = getCtx();
   if (!audioCtx) return;
   try {
@@ -24,7 +25,8 @@ export function playWrongAnswerSound(): void {
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(220, audioCtx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(90, audioCtx.currentTime + 0.22);
-    gain.gain.setValueAtTime(0.11, audioCtx.currentTime);
+    const peak = loud ? 0.32 : 0.11;
+    gain.gain.setValueAtTime(peak, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.32);
     osc.connect(gain);
     gain.connect(audioCtx.destination);

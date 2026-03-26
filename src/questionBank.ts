@@ -1,6 +1,6 @@
 import type { Grade, Subject } from './types';
 import { worldHistory, subcontinentHistory, geography } from './seeds/group1';
-import { wrm, islam, science } from './seeds/group2';
+import { wrm, science } from './seeds/group2';
 import { cricket, sports, popCultureSexEd } from './seeds/group3';
 import { worldPolitics, tech } from './seeds/group4';
 import type { Fact } from './seeds/group1';
@@ -189,7 +189,6 @@ const SEED_MAP: Record<string, Record<number, Fact[]>> = {
   Geography: geography,
   'World Religion & Mythology': wrm,
   'General Science': science,
-  Islam: islam,
   Cricket: cricket,
   Sports: sports,
   'Pop Culture & Sex Ed': popCultureSexEd,
