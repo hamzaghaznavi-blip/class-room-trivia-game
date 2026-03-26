@@ -81,8 +81,10 @@ function readInitialPresentationMode(): PresentationMode {
 
 function shareUrlForMode(mode: PresentationMode): string {
   if (typeof window === 'undefined') return '';
-  const path = import.meta.env.BASE_URL.replace(/\/?$/, '/');
-  return `${window.location.origin}${path}?mode=${mode}`;
+  const u = new URL(window.location.href);
+  u.searchParams.set('mode', mode);
+  u.hash = '';
+  return u.href;
 }
 
 function secondsForGrade(grade: Grade | null | undefined): number {
