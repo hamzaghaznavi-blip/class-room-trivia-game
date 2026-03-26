@@ -2,12 +2,7 @@
 
 A fast, presentation-ready live quiz (“Smarter Than a 5th Grader” style): add players, pick categories, score from the host view.
 
-| Mode | Behaviour |
-|------|-----------|
-| **Formal** | No buzzer, no speech — clean for exec demos. |
-| **Informal** | Loud wrong-answer buzzer + **spoken** roasts (browser TTS: Urdu-leaning male + Punjabi-mix female lines). Grades **4–6** only for roasts. |
-
-**Islam** is not a category (removed). Comparative religion still appears under *World Religion & Mythology*.
+.
 
 ## Links
 
