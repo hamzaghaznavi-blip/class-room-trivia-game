@@ -39,6 +39,9 @@ export interface Prize {
   description: string;
 }
 
+/** `formal` = default show. `informal` = same rules + wrong-answer buzzer + Urdu roast lines (G4–6). */
+export type PresentationMode = 'formal' | 'informal';
+
 export interface GameState {
   players: Player[];
   categoryChooserId: string | null;
@@ -55,5 +58,6 @@ export interface GameState {
   uneesBeesSelections: string[];
   /** Player who called Londa poll this question (½ points if they score correct) */
   londaPollPlayerId: string | null;
+  presentationMode: PresentationMode;
 }
 

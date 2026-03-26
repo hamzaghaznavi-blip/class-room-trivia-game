@@ -232,10 +232,10 @@
   filter: saturate(0.85);
 }
 
-/* Grades 4–6: “screen heats up” — brighter, faster, warmer tint */
+/* Grades 4–6: “screen heats up” — brighter, faster, warmer tint (synced with rapid timer) */
 .wow-mesh--hot {
   opacity: 0.92;
-  animation-duration: 11s;
+  animation-duration: 7s;
   filter: saturate(1.35) hue-rotate(-8deg);
   background:
     radial-gradient(ellipse 85% 50% at 45% 35%, rgba(245, 158, 11, 0.18), transparent 55%),
@@ -283,7 +283,7 @@
 }
 
 .wow-beams--hot {
-  animation-duration: 32s;
+  animation-duration: 22s;
   opacity: 0.72;
   background: conic-gradient(
     from 200deg at 50% 118%,
@@ -399,7 +399,7 @@
 }
 
 .wow-q-frame--hot {
-  animation-duration: 4.5s;
+  animation-duration: 3s;
   filter: saturate(1.2);
   box-shadow:
     0 0 80px rgba(245, 158, 11, 0.2),

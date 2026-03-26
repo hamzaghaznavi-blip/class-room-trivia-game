@@ -1,73 +1,34 @@
-# React + TypeScript + Vite
+# Formal
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Formal** is a live “Smarter Than a 5th Grader”–style quiz studio: add players, pick categories, run the timer, and score from the host view.
 
-Currently, two official plugins are available:
+- **Formal** — default presentation; no extra effects on wrong answers.
+- **Informal** — same rules and scoring; on a **wrong** answer: short **buzzer** sound, and for **grades 4–6** a random **Roman-Urdu** “boys’ banter” line (generic, no names).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Links
 
-## React Compiler
+| | URL |
+|---|-----|
+| **Repository** | [github.com/hamzaghaznavi-blip/smarter-than-5th-grader](https://github.com/hamzaghaznavi-blip/smarter-than-5th-grader) |
+| **GitHub Pages (live app)** | [hamzaghaznavi-blip.github.io/smarter-than-5th-grader](https://hamzaghaznavi-blip.github.io/smarter-than-5th-grader/) |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Share the **Pages** link for guests; keep the **host** device private if you use scoring controls.
 
-## Expanding the ESLint configuration
+## Run locally
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Build
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
 ```
+
+Output is in `dist/`. `vite.config.ts` uses `base: '/smarter-than-5th-grader/'` for GitHub Pages under the repo name path.
+
+## Stack
+
+React, TypeScript, Vite, Tailwind CSS, Motion.

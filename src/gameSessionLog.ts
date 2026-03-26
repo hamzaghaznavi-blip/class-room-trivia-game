@@ -21,6 +21,7 @@ export function serializeGameState(gs: GameState): SerializedGameState {
 export function deserializeGameState(s: SerializedGameState): GameState {
   return {
     ...s,
+    presentationMode: s.presentationMode === 'informal' ? 'informal' : 'formal',
     usedQuestionIds: new Set(s.usedQuestionIds),
     londaPollPlayerId: s.londaPollPlayerId ?? null,
     players: s.players.map((p) => ({

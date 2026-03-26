@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
-import { Trophy, Trash2, Home, Settings2, Plus, Crown, Zap, Star, Flag } from 'lucide-react';
+import { Trophy, Trash2, Home, Settings2, Plus, Crown, Zap, Star, Flag, Laugh } from 'lucide-react';
 
 /** Lazy-load confetti so initial JS stays smaller and main thread work is deferred. */
 function fireConfetti(opts: {
@@ -16,6 +16,8 @@ function fireConfetti(opts: {
 
 import { cn } from './lib/utils';
 import type { GameState, Grade, Player, Prize, Question, Subject } from './types';
+import { pickRandomInformalRoast } from './informalRoasts';
+import { playWrongAnswerSound } from './wrongAnswerSound';
 import {
   appendLogLine,
   buildTextFileContent,
@@ -46,6 +48,15 @@ const SUBJECTS: Subject[] = [
 
 const GRADES: Grade[] = [1, 2, 3, 4, 5, 6];
 const QUESTIONS_PER_SUBJECT = 5;
+
+/** Grades 1–3: full clock. Grades 4–6: rapid-fire round. */
+const TIMER_SECONDS_RELAXED = 30;
+const TIMER_SECONDS_RAPID = 12;
+
+function secondsForGrade(grade: Grade | null | undefined): number {
+  if (grade == null) return TIMER_SECONDS_RELAXED;
+  return grade >= 4 ? TIMER_SECONDS_RAPID : TIMER_SECONDS_RELAXED;
+}
 
 const PRIZE_TABLE: Prize[] = [
   { id: 'p1', name: 'Golden Pen', description: 'A high-quality writing instrument.' },
@@ -168,9 +179,12 @@ const SUBJECT_ICONS: Record<string, string> = {
 const TimerRing = memo(function TimerRing({ timeLeft, total = 30 }: { timeLeft: number; total?: number }) {
   const radius = 28;
   const circumference = 2 * Math.PI * radius;
-  const progress = timeLeft / total;
+  const progress = Math.min(1, Math.max(0, timeLeft / total));
   const dashOffset = circumference * (1 - progress);
-  const isCritical = timeLeft <= 10 && timeLeft > 0;
+  const criticalAt = Math.max(1, Math.floor(total * 0.34));
+  const warnAt = Math.max(criticalAt + 1, Math.ceil(total * 0.5));
+  const isCritical = timeLeft <= criticalAt && timeLeft > 0;
+  const isWarn = timeLeft <= warnAt && timeLeft > criticalAt;
 
   return (
     <div className={cn('relative flex items-center justify-center', isCritical && 'timer-critical')}>
@@ -184,7 +198,7 @@ const TimerRing = memo(function TimerRing({ timeLeft, total = 30 }: { timeLeft: 
         <circle
           cx="36" cy="36" r={radius}
           fill="none"
-          stroke={isCritical ? '#EF4444' : timeLeft <= 15 ? '#F59E0B' : '#00FF88'}
+          stroke={isCritical ? '#EF4444' : isWarn ? '#F59E0B' : '#00FF88'}
           strokeWidth="4"
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -194,7 +208,7 @@ const TimerRing = memo(function TimerRing({ timeLeft, total = 30 }: { timeLeft: 
       </svg>
       <span className={cn(
         'absolute text-xl font-black font-mono',
-        isCritical ? 'text-red-400' : 'text-white',
+        isCritical ? 'text-red-400' : isWarn ? 'text-amber-glow' : 'text-white',
       )}>
         {timeLeft}
       </span>
@@ -299,6 +313,7 @@ export default function SmarterThan5thGraderApp() {
     uneesBeesActive: false,
     uneesBeesSelections: [],
     londaPollPlayerId: null,
+    presentationMode: 'formal',
   });
 
   const [newPlayerName, setNewPlayerName] = useState('');
@@ -314,6 +329,14 @@ export default function SmarterThan5thGraderApp() {
   const [scorePopups, setScorePopups] = useState<ScorePopup[]>([]);
   const [hostPanelOpen, setHostPanelOpen] = useState(false);
   const [customAdjust, setCustomAdjust] = useState<Record<string, string>>({});
+  /** Informal mode: random Urdu roast line (G4–6) after wrong answer */
+  const [informalRoast, setInformalRoast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!informalRoast) return;
+    const t = window.setTimeout(() => setInformalRoast(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [informalRoast]);
 
   const resetQuestionUI = useCallback(() => {
     setHostRevealAll(false);
@@ -451,7 +474,7 @@ export default function SmarterThan5thGraderApp() {
     });
     setShowAnswer(false);
     resetQuestionUI();
-    setTimeLeft(30);
+    setTimeLeft(secondsForGrade(grade));
     setIsTimerRunning(true);
   }, [gameState.currentSubject, resetQuestionUI]);
 
@@ -475,10 +498,10 @@ export default function SmarterThan5thGraderApp() {
     });
     setShowAnswer(false);
     resetQuestionUI();
-    setTimeLeft(30);
+    setTimeLeft(secondsForGrade(gameState.currentGrade));
     setIsTimerRunning(true);
     logScoreEvent('Next question (random)');
-  }, [resetQuestionUI, logScoreEvent]);
+  }, [resetQuestionUI, logScoreEvent, gameState.currentGrade]);
 
   const alternateQuestion = useCallback(() => {
     setGameState((prev) => {
@@ -500,10 +523,10 @@ export default function SmarterThan5thGraderApp() {
     });
     setShowAnswer(false);
     resetQuestionUI();
-    setTimeLeft(30);
+    setTimeLeft(secondsForGrade(gameState.currentGrade));
     setIsTimerRunning(true);
     logScoreEvent('Alternate question (different prompt)');
-  }, [resetQuestionUI, logScoreEvent]);
+  }, [resetQuestionUI, logScoreEvent, gameState.currentGrade]);
 
   const handleScore = useCallback((playerId: string, isCorrect: boolean) => {
     const grade = gameState.currentGrade ?? 1;
@@ -512,6 +535,12 @@ export default function SmarterThan5thGraderApp() {
 
     if (isCorrect) {
       fireConfetti({ particleCount: 120, spread: 70, origin: { y: 0.6 }, colors: ['#00FF88', '#3B82F6', '#F59E0B'] });
+    }
+    if (!isCorrect && gameState.presentationMode === 'informal') {
+      playWrongAnswerSound();
+      if (grade >= 4) {
+        setInformalRoast(pickRandomInformalRoast());
+      }
     }
 
     setIsTimerRunning(false);
@@ -568,7 +597,16 @@ export default function SmarterThan5thGraderApp() {
       };
     });
     setShowAnswer(false);
-  }, [gameState.currentGrade, gameState.categoryChooserId, gameState.londaPollPlayerId, gameState.players, logScoreEvent, logScoreSnapshot, showScorePopup]);
+  }, [
+    gameState.currentGrade,
+    gameState.categoryChooserId,
+    gameState.londaPollPlayerId,
+    gameState.players,
+    gameState.presentationMode,
+    logScoreEvent,
+    logScoreSnapshot,
+    showScorePopup,
+  ]);
 
   const activateUneesBees = useCallback((playerId: string) => {
     if (!gameState.currentQuestion) return;
@@ -624,6 +662,7 @@ export default function SmarterThan5thGraderApp() {
       uneesBeesActive: false,
       uneesBeesSelections: [],
       londaPollPlayerId: null,
+      presentationMode: 'formal',
     });
   }, []);
 
@@ -725,6 +764,29 @@ export default function SmarterThan5thGraderApp() {
         <ScoreFloat key={p.id} popup={p} />
       ))}
 
+      {/* Informal mode: roast line (G4–6 wrong answers) */}
+      <AnimatePresence>
+        {informalRoast && (
+          <motion.div
+            key={informalRoast}
+            role="status"
+            initial={{ opacity: 0, y: 40, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            className="fixed bottom-8 left-1/2 z-[95] w-[min(92vw,28rem)] -translate-x-1/2 px-5 py-4 rounded-2xl border border-hot-pink/40 bg-hot-pink/15 backdrop-blur-md shadow-[0_0_40px_rgba(236,72,153,0.2)]"
+          >
+            <p className="flex items-start gap-3 text-left">
+              <Laugh className="w-6 h-6 text-hot-pink shrink-0 mt-0.5" aria-hidden />
+              <span className="text-lg sm:text-xl font-bold leading-snug text-white" dir="auto">
+                {informalRoast}
+              </span>
+            </p>
+            <p className="text-[10px] font-mono text-white/40 mt-2 uppercase tracking-wider">Informal · grades 4–6</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Resume banner */}
       {resumeOffered && resumeSessionName && (
         <motion.div
@@ -766,10 +828,17 @@ export default function SmarterThan5thGraderApp() {
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-display uppercase leading-none tracking-tighter text-white">
-                Smarter Than a 5th Grader
+                Formal
               </h1>
+              <p className="text-xs font-mono uppercase tracking-widest text-white/50 font-bold mt-0.5">
+                Smarter Than a 5th Grader
+              </p>
               <p className="text-xs font-mono uppercase tracking-widest text-neon-green/80 font-bold mt-0.5">
-                Hosted by Hamza
+                {gameState.presentationMode === 'informal' ? (
+                  <span className="text-hot-pink">Informal · buzzer + Urdu banter (grades 4–6)</span>
+                ) : (
+                  <>Hosted by Hamza</>
+                )}
               </p>
             </div>
           </div>
@@ -949,6 +1018,40 @@ export default function SmarterThan5thGraderApp() {
                   </AnimatePresence>
                 </div>
 
+                <div className="space-y-3">
+                  <p className="text-xs font-mono font-bold uppercase text-white/40 tracking-wider">Mode</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setGameState((prev) => ({ ...prev, presentationMode: 'formal' }))}
+                      className={cn(
+                        'py-4 px-4 rounded-xl border-2 font-mono text-xs font-bold uppercase transition-all',
+                        gameState.presentationMode === 'formal'
+                          ? 'border-neon-green bg-neon-green/10 text-neon-green'
+                          : 'border-white/15 bg-white/5 text-white/50 hover:border-white/25',
+                      )}
+                    >
+                      Formal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGameState((prev) => ({ ...prev, presentationMode: 'informal' }))}
+                      className={cn(
+                        'py-4 px-4 rounded-xl border-2 font-mono text-xs font-bold uppercase transition-all flex items-center justify-center gap-2',
+                        gameState.presentationMode === 'informal'
+                          ? 'border-hot-pink bg-hot-pink/10 text-hot-pink'
+                          : 'border-white/15 bg-white/5 text-white/50 hover:border-white/25',
+                      )}
+                    >
+                      <Laugh className="w-4 h-4" />
+                      Informal
+                    </button>
+                  </div>
+                  <p className="text-[11px] font-mono text-white/35 leading-relaxed">
+                    Informal: wrong-answer buzzer + random Urdu roast (grades 4–6 only). Same scoring.
+                  </p>
+                </div>
+
                 <button
                   onClick={() => {
                     if (gameState.players.length < 1) return;
@@ -962,7 +1065,7 @@ export default function SmarterThan5thGraderApp() {
                       logLines: [],
                       gameState: serializeGameState(next),
                     };
-                    appendLogLine(session, `Session "${name}" started`);
+                    appendLogLine(session, `Session "${name}" started (${next.presentationMode})`);
                     next.players.forEach((p) => appendLogLine(session, `Player: ${p.name} (total 0)`));
                     persistedSessionRef.current = session;
                     setSessionName(name);
@@ -1097,7 +1200,11 @@ export default function SmarterThan5thGraderApp() {
               initial={{ opacity: 0, scale: 1.02 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 120 }}
+              transition={
+                (gameState.currentGrade ?? 1) >= 4
+                  ? { type: 'spring', stiffness: 260, damping: 24 }
+                  : { type: 'spring', stiffness: 120, damping: 20 }
+              }
               className="space-y-8"
             >
               {/* Question header */}
@@ -1110,7 +1217,17 @@ export default function SmarterThan5thGraderApp() {
                   </p>
                   <ProgressDots current={gameState.questionsAnsweredInSubject} total={QUESTIONS_PER_SUBJECT} />
                 </div>
-                <TimerRing timeLeft={timeLeft} />
+                <div className="flex items-center gap-3">
+                  {(gameState.currentGrade ?? 1) >= 4 && (
+                    <span className="hidden sm:inline font-mono text-[10px] font-black uppercase tracking-[0.2em] text-amber-glow/90 border border-amber-glow/35 px-2 py-1 rounded-md bg-amber-glow/10">
+                      Rapid · {TIMER_SECONDS_RAPID}s
+                    </span>
+                  )}
+                  <TimerRing
+                    timeLeft={timeLeft}
+                    total={secondsForGrade(gameState.currentGrade ?? 1)}
+                  />
+                </div>
               </div>
 
               {/* Question card — THE hero of the page (rim: calmer G1–3, intense G4–6) */}
