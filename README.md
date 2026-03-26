@@ -15,10 +15,7 @@ A fast, presentation-ready live quiz (“Smarter Than a 5th Grader” style): ad
 
 ### Direct entry URLs
 
-- **Formal:** `…/class-room-trivia-game/?mode=formal`
-- **Informal:** `…/class-room-trivia-game/?mode=informal`
 
-The setup screen has **copy buttons** for both. Voices depend on the OS/browser (install Urdu/Punjabi/Hindi voices for best results).
 
 ## Run locally
 
