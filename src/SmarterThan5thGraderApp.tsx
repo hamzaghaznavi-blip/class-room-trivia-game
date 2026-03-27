@@ -323,7 +323,7 @@ const ProgressDots = memo(function ProgressDots({ current, total }: { current: n
           )}
         />
       ))}
-      <span className="text-xs font-mono text-white/50 ml-2">{current}/{total}</span>
+      <span className="text-xs font-mono text-white/75 ml-2">{current}/{total}</span>
     </div>
   );
 });
@@ -669,6 +669,7 @@ export default function SmarterThan5thGraderApp() {
       };
     });
     setShowAnswer(false);
+    setSelectedGrade(null);
   }, [
     gameState.currentGrade,
     gameState.categoryChooserId,
@@ -677,6 +678,7 @@ export default function SmarterThan5thGraderApp() {
     gameState.presentationMode,
     logScoreEvent,
     logScoreSnapshot,
+    pushGiftNotice,
     showScorePopup,
   ]);
 
@@ -1262,12 +1264,12 @@ export default function SmarterThan5thGraderApp() {
           {gameState.gamePhase === 'QUESTION' && gameState.currentQuestion && (
             <div
               key="q"
-              className="space-y-8"
+              className="relative z-20 isolate space-y-8 pb-10"
             >
               {/* Question header */}
-              <div className="relative z-[5] flex justify-between items-center">
+              <div className="relative flex justify-between items-center">
                 <div>
-                  <p className="text-xs font-mono uppercase text-white/40 tracking-widest">
+                  <p className="text-xs font-mono uppercase text-white/75 tracking-widest">
                     {gameState.currentSubject} · Grade {gameState.currentGrade} · +{formatScore(pointsForCorrect(gameState.currentGrade ?? 1))} pts
                     {gameState.londaPollPlayerId &&
                       ` · Lounda: ${gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'} (½)`}
@@ -1287,9 +1289,9 @@ export default function SmarterThan5thGraderApp() {
                 </div>
               </div>
 
-              {/* Question card — THE hero of the page (rim: calmer G1–3, intense G4–6) */}
-              <div className="relative z-[5] rounded-3xl border border-white/10 bg-[#0B0F14] shadow-2xl shadow-black/60 ring-1 ring-white/[0.06] overflow-hidden">
-                <div className="absolute inset-0 opacity-[0.22] bg-[radial-gradient(ellipse_120%_90%_at_50%_0%,rgba(255,255,255,0.06),transparent_60%)]" aria-hidden />
+              {/* Question card */}
+              <div className="relative rounded-3xl border border-white/15 bg-[#111820] shadow-md shadow-black/40 ring-1 ring-white/10 overflow-hidden">
+                <div className="absolute inset-0 opacity-30 bg-[radial-gradient(ellipse_100%_80%_at_50%_0%,rgba(59,130,246,0.08),transparent_55%)]" aria-hidden />
                 <div className="relative p-8 sm:p-12 lg:p-14">
                 <h3 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-display leading-[1.1] tracking-tight mb-10 text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.55)]">
                   {gameState.currentQuestion.question}
@@ -1387,18 +1389,21 @@ export default function SmarterThan5thGraderApp() {
                 </div>
               </div>
 
-              {/* Lifelines */}
-              <div className="rounded-2xl border border-white/10 bg-[#0a0c12] p-5 sm:p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Star className="w-4 h-4 text-amber-glow" />
-                  <h2 className="text-sm font-display uppercase tracking-wide text-white/60">
-                    Lifelines
-                  </h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Host: lifelines + scoring — high-contrast panel (readable on projector) */}
+              <section
+                className="rounded-2xl border border-white/20 bg-[#141c28] p-6 sm:p-8 shadow-[0_8px_32px_rgba(0,0,0,0.45)] ring-1 ring-white/10"
+                aria-label="Host controls"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 pb-8 border-b border-white/15">
                   <div>
-                    <p className="font-mono text-[10px] font-bold text-white/40 mb-2 uppercase tracking-wider">
-                      Unees Bees — pick two answers (once/game)
+                    <div className="flex items-center gap-2 mb-3">
+                      <Star className="w-5 h-5 text-amber-glow shrink-0" aria-hidden />
+                      <h2 className="text-sm font-bold uppercase tracking-wide text-white">
+                        Lifelines
+                      </h2>
+                    </div>
+                    <p className="font-mono text-[11px] font-bold text-white/70 mb-3 uppercase tracking-wider">
+                      Unees Bees — pick two answers on screen (once per player)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {gameState.players.map((p) =>
@@ -1407,21 +1412,21 @@ export default function SmarterThan5thGraderApp() {
                             key={`unees-${p.id}`}
                             type="button"
                             onClick={() => activateUneesBees(p.id)}
-                            className="px-3 py-1.5 bg-electric-blue/15 text-electric-blue border border-electric-blue/30 font-mono text-xs font-bold uppercase rounded-lg hover:bg-electric-blue/25 transition-all"
+                            className="px-4 py-2 bg-white text-black border border-white font-mono text-xs font-bold uppercase rounded-lg hover:bg-white/90 transition-colors"
                           >
                             {p.name}
                           </button>
                         ) : null,
                       )}
                       {gameState.players.every((p) => p.hasUsedUneesBees === true) && (
-                        <p className="font-mono text-xs text-white/30">All used</p>
+                        <p className="font-mono text-xs text-white/60">All used</p>
                       )}
                     </div>
                   </div>
 
                   <div>
-                    <p className="font-mono text-[10px] font-bold text-white/40 mb-2 uppercase tracking-wider">
-                      Lounda poll — ask the room, ½ pts (once/game)
+                    <p className="font-mono text-[11px] font-bold text-white/70 mb-3 uppercase tracking-wider">
+                      Lounda poll — ½ pts if correct (once per player)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {gameState.players.map((p) => {
@@ -1433,58 +1438,66 @@ export default function SmarterThan5thGraderApp() {
                             key={`londa-${p.id}`}
                             type="button"
                             onClick={() => activateLondaPoll(p.id)}
-                            className="px-3 py-1.5 bg-deep-purple/15 text-deep-purple border border-deep-purple/30 font-mono text-xs font-bold uppercase rounded-lg hover:bg-deep-purple/25 transition-all"
+                            className="px-4 py-2 bg-violet-500/25 text-violet-100 border border-violet-400/50 font-mono text-xs font-bold uppercase rounded-lg hover:bg-violet-500/35 transition-colors"
                           >
                             {p.name}
                           </button>
                         );
                       })}
                       {gameState.londaPollPlayerId != null && (
-                        <p className="font-mono text-xs font-bold text-deep-purple">
+                        <p className="font-mono text-sm font-bold text-violet-200 w-full">
                           Active: {gameState.players.find((x) => x.id === gameState.londaPollPlayerId)?.name ?? '?'}
                         </p>
                       )}
                       {gameState.players.every((p) => p.hasUsedLondaPoll === true) &&
                         gameState.londaPollPlayerId == null && (
-                          <p className="font-mono text-xs text-white/30">All used</p>
+                          <p className="font-mono text-xs text-white/60">All used</p>
                         )}
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Score buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {gameState.players.map((player) => (
-                  <div key={player.id} className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => handleScore(player.id, true)}
-                      className={cn(
-                        'w-full p-6 rounded-xl border-2 text-xl font-black uppercase transition-all active:scale-[0.97]',
-                        player.id === gameState.categoryChooserId
-                          ? 'bg-electric-blue/15 border-electric-blue/40 text-electric-blue hover:bg-electric-blue/25'
-                          : 'bg-white/[0.03] border-white/10 text-white/80 hover:bg-neon-green/10 hover:border-neon-green/30 hover:text-neon-green',
-                      )}
-                    >
-                      {player.name}{' '}
-                      <span className="text-neon-green">
-                        (+{formatScore(pointsForCorrectWithLonda(gameState.currentGrade ?? 1, player.id, gameState.londaPollPlayerId))})
-                      </span>
-                    </button>
+                <div className="mb-4">
+                  <h2 className="text-base font-bold uppercase tracking-wide text-white">
+                    Tap who got it right
+                  </h2>
+                  <p className="text-xs font-mono text-white/65 mt-1">
+                    Chooser-only wrong button applies −1 to the category picker.
+                  </p>
+                </div>
 
-                    {player.id === gameState.categoryChooserId && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {gameState.players.map((player) => (
+                    <div key={player.id} className="space-y-2">
                       <button
                         type="button"
-                        onClick={() => handleScore(player.id, false)}
-                        className="w-full py-3 bg-red-500/10 text-red-400 border border-red-500/30 font-mono font-bold uppercase text-xs rounded-xl hover:bg-red-500/20 transition-all"
+                        onClick={() => handleScore(player.id, true)}
+                        className={cn(
+                          'w-full p-5 rounded-xl border-2 text-lg font-black uppercase transition-colors active:scale-[0.99]',
+                          player.id === gameState.categoryChooserId
+                            ? 'bg-sky-500/25 border-sky-400 text-white hover:bg-sky-500/35'
+                            : 'bg-[#1e2636] border-white/25 text-white hover:bg-[#252f42] hover:border-neon-green/50',
+                        )}
                       >
-                        Wrong (−1 chooser)
+                        <span className="block text-[15px] leading-tight">{player.name}</span>
+                        <span className="text-neon-green text-xl mt-1 inline-block">
+                          +{formatScore(pointsForCorrectWithLonda(gameState.currentGrade ?? 1, player.id, gameState.londaPollPlayerId))}
+                        </span>
                       </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+
+                      {player.id === gameState.categoryChooserId && (
+                        <button
+                          type="button"
+                          onClick={() => handleScore(player.id, false)}
+                          className="w-full py-3 bg-red-600/20 text-red-100 border-2 border-red-500/50 font-mono font-bold uppercase text-xs rounded-xl hover:bg-red-600/30 transition-colors"
+                        >
+                          Wrong (−1 chooser)
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
           )}
 
