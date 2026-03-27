@@ -1,5 +1,4 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   Trophy,
   Trash2,
@@ -264,7 +263,6 @@ const Leaderboard = memo(function Leaderboard({
   players: Player[];
   showSubjectScore?: boolean;
 }) {
-  const reduceMotion = useReducedMotion();
   const sorted = useMemo(
     () => [...players].sort((a, b) => b.totalScore - a.totalScore),
     [players],
@@ -274,15 +272,8 @@ const Leaderboard = memo(function Leaderboard({
   return (
     <div className="space-y-2">
       {sorted.map((p, i) => (
-        <motion.div
+        <div
           key={p.id}
-          initial={reduceMotion ? false : { opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={
-            reduceMotion
-              ? { duration: 0 }
-              : { delay: i * 0.06, type: 'spring', stiffness: 220, damping: 26 }
-          }
           className={cn(
             'flex items-center gap-3 px-4 py-3 rounded-xl border transition-all',
             i === 0 ? 'bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border-amber-500/30' :
@@ -299,7 +290,7 @@ const Leaderboard = memo(function Leaderboard({
               <span className="block text-xs font-mono text-white/50">round: {formatScore(p.subjectScore)}</span>
             )}
           </div>
-        </motion.div>
+        </div>
       ))}
     </div>
   );
@@ -595,7 +586,7 @@ export default function SmarterThan5thGraderApp() {
     const pts = pointsForCorrectWithLonda(grade, playerId, gameState.londaPollPlayerId);
 
     if (isCorrect) {
-      fireConfetti({ particleCount: 120, spread: 70, origin: { y: 0.6 }, colors: ['#00FF88', '#3B82F6', '#F59E0B'] });
+      fireConfetti({ particleCount: 42, spread: 58, origin: { y: 0.6 }, colors: ['#00FF88', '#3B82F6', '#F59E0B'] });
     }
     if (ENABLE_INFORMAL_MODE && !isCorrect && gameState.presentationMode === 'informal') {
       cancelInformalSpeech();
@@ -750,7 +741,7 @@ export default function SmarterThan5thGraderApp() {
   const endGame = useCallback(() => {
     logScoreEvent('=== GAME OVER ===');
     logScoreSnapshot(gameState.players, 'FINAL');
-    fireConfetti({ particleCount: 300, spread: 120, origin: { y: 0.4 }, colors: ['#00FF88', '#3B82F6', '#F59E0B', '#EC4899', '#8B5CF6'] });
+    fireConfetti({ particleCount: 72, spread: 90, origin: { y: 0.4 }, colors: ['#00FF88', '#3B82F6', '#F59E0B', '#EC4899', '#8B5CF6'] });
     setGameState((prev) => ({
       ...prev,
       gamePhase: 'GAME_OVER',
@@ -842,15 +833,10 @@ export default function SmarterThan5thGraderApp() {
       ))}
 
       {/* Gift milestone notices */}
-      <AnimatePresence>
-        {giftNotices.slice(-2).map((n) => (
-          <motion.div
+      {giftNotices.slice(-2).map((n) => (
+          <div
             key={n.id}
             role="status"
-            initial={{ opacity: 0, y: 30, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
             className="fixed top-24 left-1/2 z-[92] w-[min(92vw,34rem)] -translate-x-1/2 px-5 py-4 rounded-2xl border border-amber-glow/35 bg-[#141008]/95 shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
           >
             <div className="flex items-start gap-3">
@@ -862,20 +848,14 @@ export default function SmarterThan5thGraderApp() {
                 <p className="text-[10px] font-mono text-white/35 mt-1 uppercase tracking-wider">Host gift milestone · every +20 points</p>
               </div>
             </div>
-          </motion.div>
+          </div>
         ))}
-      </AnimatePresence>
 
       {/* Informal mode: roast line (G4–6 wrong answers) */}
-      <AnimatePresence>
-        {informalRoast && (
-          <motion.div
+      {informalRoast && (
+          <div
             key={informalRoast}
             role="status"
-            initial={{ opacity: 0, y: 40, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
             className="fixed bottom-8 left-1/2 z-[95] w-[min(92vw,28rem)] -translate-x-1/2 px-5 py-4 rounded-2xl border border-hot-pink/40 bg-[#1a0f16]/95 shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
           >
             <p className="flex items-start gap-3 text-left">
@@ -885,15 +865,12 @@ export default function SmarterThan5thGraderApp() {
               </span>
             </p>
             <p className="text-[10px] font-mono text-white/40 mt-2 uppercase tracking-wider">Informal · grades 4–6</p>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Resume banner */}
       {resumeOffered && resumeSessionName && (
-        <motion.div
-          initial={{ y: -60, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
+        <div
           className="relative z-50 bg-amber-glow/10 border-b border-amber-glow/30 px-6 py-4 flex flex-wrap items-center justify-between gap-3 max-w-7xl mx-auto"
         >
           <p className="font-mono text-sm font-bold text-amber-glow">
@@ -915,7 +892,7 @@ export default function SmarterThan5thGraderApp() {
               Start fresh
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* ── Header ── */}
@@ -923,8 +900,8 @@ export default function SmarterThan5thGraderApp() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="bg-gradient-to-br from-neon-green to-electric-blue p-3 rounded-2xl">
-                <Trophy className="w-7 h-7 text-brutal-black" />
+              <div className="border border-white/15 bg-white/[0.06] p-3 rounded-xl">
+                <Trophy className="w-7 h-7 text-neon-green" />
               </div>
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-neon-green rounded-full opacity-90" />
             </div>
@@ -1017,65 +994,42 @@ export default function SmarterThan5thGraderApp() {
 
       {/* ── Main ── */}
       <main className="relative z-10 max-w-6xl mx-auto px-6 py-12 sm:py-16">
-        <AnimatePresence mode="wait">
-
-          {/* ── SETUP ── */}
+        {/* ── SETUP ── */}
           {gameState.gamePhase === 'SETUP' && (
-            <motion.div
+            <div
               key="setup"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -30 }}
-              transition={{ type: 'spring', stiffness: 100 }}
               className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center"
             >
               <div className="space-y-8">
                 <div>
-                  <motion.h2
-                    initial={{ opacity: 0, x: -30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 }}
+                  <h2
                     className="text-5xl sm:text-7xl md:text-8xl font-display uppercase leading-[0.88] tracking-tighter"
                   >
                     <span className="text-gradient">READY TO PLAY</span>
-                  </motion.h2>
-                  <motion.p
-                    initial={{ opacity: 0, x: -30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="text-white/55 font-mono text-sm mt-5 max-w-lg leading-relaxed"
-                  >
+                  </h2>
+                  <p className="text-white/55 font-mono text-sm mt-5 max-w-lg leading-relaxed">
                     Add players, pick Formal or Informal, and run a fast-paced live quiz.
                     Grade 1 = 1pt → Grade 6 = 6pts. Sharp timers. Built for the big screen.
-                  </motion.p>
+                  </p>
                 </div>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
+                <div
                   className="flex items-center gap-4 p-4 rounded-xl bg-neon-green/5 border border-neon-green/20"
                 >
                   <Zap className="w-5 h-5 text-neon-green flex-shrink-0" />
                   <p className="font-mono text-xs font-bold text-neon-green/80 uppercase">
                     11 subjects · 6 grades · 2 lifelines · 5,000+ questions · rapid rounds
                   </p>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
+                </div>
+                <div
                   className="text-xs font-mono text-white/40 space-y-1"
                 >
                   <p>Lounda poll: ask the room, ½ pts for caller (once/game).</p>
                   <p>Unees Bees: contestant picks two answers (once/game).</p>
                   <p>Chooser wrong: −1 pt. Others wrong: 0 pts.</p>
-                </motion.div>
+                </div>
               </div>
 
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2, type: 'spring' }}
+              <div
                 className="bg-[#0c0e14] border border-white/10 rounded-3xl p-8 sm:p-10 space-y-8 shadow-2xl shadow-black/40 ring-1 ring-white/[0.06]"
               >
                 <div className="flex gap-3">
@@ -1096,14 +1050,9 @@ export default function SmarterThan5thGraderApp() {
                 </div>
 
                 <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                  <AnimatePresence>
-                    {gameState.players.map((player, idx) => (
-                      <motion.div
+                  {gameState.players.map((player, idx) => (
+                      <div
                         key={player.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
-                        transition={{ delay: idx * 0.05 }}
                         className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-5 py-4 group hover:bg-white/8 transition-all"
                       >
                         <div className="flex items-center gap-3">
@@ -1120,9 +1069,8 @@ export default function SmarterThan5thGraderApp() {
                         >
                           <Trash2 className="w-5 h-5" />
                         </button>
-                      </motion.div>
+                      </div>
                     ))}
-                  </AnimatePresence>
                 </div>
 
                 {ENABLE_INFORMAL_MODE && (
@@ -1206,18 +1154,14 @@ export default function SmarterThan5thGraderApp() {
                 >
                   <span className="relative z-10">Start Show</span>
                 </button>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
 
           {/* ── CATEGORY SELECTION ── */}
           {gameState.gamePhase === 'CATEGORY_SELECTION' && (
-            <motion.div
+            <div
               key="cat"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 120 }}
               className="space-y-12"
             >
               <div className="text-center">
@@ -1227,12 +1171,9 @@ export default function SmarterThan5thGraderApp() {
                 <p className="text-white/40 font-mono text-sm mt-3">Select the contestant who picks the subject</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                {gameState.players.map((player, idx) => (
-                  <motion.button
+                {gameState.players.map((player) => (
+                  <button
                     key={player.id}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.08 }}
                     onClick={() =>
                       setGameState((prev) => ({
                         ...prev,
@@ -1247,20 +1188,16 @@ export default function SmarterThan5thGraderApp() {
                     </div>
                     <span className="text-2xl font-display uppercase">{player.name}</span>
                     <p className="text-xs font-mono text-white/40 mt-2">{formatScore(player.totalScore)} pts</p>
-                  </motion.button>
+                  </button>
                 ))}
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* ── GRADE SELECTION ── */}
           {gameState.gamePhase === 'GRADE_SELECTION' && (
-            <motion.div
+            <div
               key="grade"
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -40 }}
-              transition={{ type: 'spring', stiffness: 100 }}
               className="space-y-12"
             >
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
@@ -1294,9 +1231,7 @@ export default function SmarterThan5thGraderApp() {
               </div>
 
               {gameState.currentSubject && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="grid grid-cols-3 sm:grid-cols-6 gap-4 pt-4"
                 >
                   {GRADES.map((grade) => (
@@ -1318,19 +1253,15 @@ export default function SmarterThan5thGraderApp() {
                       </span>
                     </button>
                   ))}
-                </motion.div>
+                </div>
               )}
-            </motion.div>
+            </div>
           )}
 
           {/* ── QUESTION ── */}
           {gameState.gamePhase === 'QUESTION' && gameState.currentQuestion && (
-            <motion.div
+            <div
               key="q"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12, ease: 'easeOut' }}
               className="space-y-8"
             >
               {/* Question header */}
@@ -1445,15 +1376,13 @@ export default function SmarterThan5thGraderApp() {
                 </div>
 
                 {showAnswer && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
+                  <div
                     className="inline-block px-6 py-3 bg-neon-green/10 border border-neon-green/30 rounded-xl"
                   >
                     <span className="text-2xl sm:text-3xl font-display uppercase text-neon-green">
                       {gameState.currentQuestion.answer}
                     </span>
-                  </motion.div>
+                  </div>
                 )}
                 </div>
               </div>
@@ -1556,59 +1485,46 @@ export default function SmarterThan5thGraderApp() {
                   </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* ── SUBJECT RESULTS ── */}
           {gameState.gamePhase === 'SUBJECT_RESULTS' && subjectWinner && (
-            <motion.div
+            <div
               key="res"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 100 }}
               className="space-y-12 py-8"
             >
               <div className="text-center">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                <div
                   className="inline-block mb-6"
                 >
                   <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-amber-glow to-hot-pink flex items-center justify-center">
                     <Trophy className="w-10 h-10 text-white" />
                   </div>
-                </motion.div>
+                </div>
                 <h2 className="text-5xl sm:text-7xl font-display uppercase tracking-tighter">
                   Round <span className="text-gradient-warm">Winner</span>
                 </h2>
                 <p className="text-white/40 font-mono text-sm mt-2">{gameState.currentSubject}</p>
               </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
+              <div
                 className="max-w-md mx-auto text-center p-10 rounded-3xl bg-gradient-to-br from-amber-glow/10 to-hot-pink/5 border border-amber-glow/20"
               >
                 <h3 className="text-5xl sm:text-6xl font-display uppercase mb-2">{subjectWinner.name}</h3>
                 <p className="text-3xl font-mono font-bold text-neon-green">
                   {formatScore(subjectWinner.subjectScore)} Points
                 </p>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
+              <div
                 className="max-w-lg mx-auto"
               >
                 <h3 className="text-sm font-mono uppercase text-white/40 tracking-widest mb-4 text-center">
                   Full Leaderboard
                 </h3>
                 <Leaderboard players={gameState.players} showSubjectScore />
-              </motion.div>
+              </div>
 
               <div className="text-center">
                 <button
@@ -1634,32 +1550,25 @@ export default function SmarterThan5thGraderApp() {
                   Next Subject
                 </button>
               </div>
-            </motion.div>
+            </div>
           )}
           {/* ── GAME OVER ── */}
           {gameState.gamePhase === 'GAME_OVER' && (() => {
             const sorted = [...gameState.players].sort((a, b) => b.totalScore - a.totalScore);
             const champion = sorted[0];
             return (
-              <motion.div
+              <div
                 key="game-over"
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 80 }}
                 className="space-y-14 py-10"
               >
                 <div className="text-center space-y-6">
-                  <motion.div
-                    initial={{ scale: 0, rotate: -20 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    transition={{ delay: 0.2, type: 'spring', stiffness: 150 }}
+                  <div
                     className="inline-block"
                   >
                     <div className="w-28 h-28 mx-auto rounded-full bg-gradient-to-br from-amber-glow via-hot-pink to-deep-purple flex items-center justify-center shadow-[0_0_60px_rgba(245,158,11,0.35)]">
                       <Crown className="w-14 h-14 text-white drop-shadow-lg" />
                     </div>
-                  </motion.div>
+                  </div>
 
                   <h2 className="text-5xl sm:text-7xl lg:text-8xl font-display uppercase tracking-tighter">
                     Game <span className="text-gradient-warm">Over</span>
@@ -1668,10 +1577,7 @@ export default function SmarterThan5thGraderApp() {
                 </div>
 
                 {champion && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 40 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
+                  <div
                     className="max-w-lg mx-auto text-center p-12 rounded-3xl bg-gradient-to-br from-amber-glow/10 via-hot-pink/5 to-deep-purple/5 border border-amber-glow/20 shadow-[0_0_40px_rgba(245,158,11,0.1)]"
                   >
                     <p className="text-white/50 font-mono text-xs uppercase tracking-[0.3em] mb-3">Champion</p>
@@ -1679,13 +1585,10 @@ export default function SmarterThan5thGraderApp() {
                     <p className="text-4xl font-mono font-bold text-neon-green">
                       {formatScore(champion.totalScore)} Points
                     </p>
-                  </motion.div>
+                  </div>
                 )}
 
-                <motion.div
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
+                <div
                   className="max-w-lg mx-auto"
                 >
                   <h3 className="text-sm font-mono uppercase text-white/40 tracking-widest mb-4 text-center">
@@ -1693,11 +1596,8 @@ export default function SmarterThan5thGraderApp() {
                   </h3>
                   <div className="space-y-2">
                     {sorted.map((p, i) => (
-                      <motion.div
+                      <div
                         key={p.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.7 + i * 0.1 }}
                         className={cn(
                           'flex items-center justify-between p-4 rounded-xl border',
                           i === 0
@@ -1719,15 +1619,12 @@ export default function SmarterThan5thGraderApp() {
                           <span className="font-black uppercase text-sm">{p.name}</span>
                         </div>
                         <span className="font-mono font-bold text-neon-green text-lg">{formatScore(p.totalScore)}</span>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 1 }}
+                <div
                   className="flex flex-col sm:flex-row items-center justify-center gap-4"
                 >
                   <button
@@ -1754,21 +1651,15 @@ export default function SmarterThan5thGraderApp() {
                   >
                     Download Log
                   </button>
-                </motion.div>
-              </motion.div>
+                </div>
+              </div>
             );
           })()}
-        </AnimatePresence>
       </main>
 
       {/* ── Host Panel (Floating Bottom Sheet) ── */}
-      <AnimatePresence>
-        {hostPanelOpen && gameState.players.length > 0 && (
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      {hostPanelOpen && gameState.players.length > 0 && (
+          <div
             className="fixed inset-x-0 bottom-0 z-[60] max-h-[60vh] overflow-y-auto border-t border-white/10 bg-[#0a0a0f] shadow-[0_-8px_30px_rgba(0,0,0,0.5)]"
           >
             <div className="max-w-7xl mx-auto px-4 py-4 space-y-4">
@@ -1837,9 +1728,8 @@ export default function SmarterThan5thGraderApp() {
                 ))}
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   );
 }
